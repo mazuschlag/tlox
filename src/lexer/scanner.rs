@@ -1,5 +1,6 @@
 use super::token::{Token, TokenType, Literal};
 
+#[derive(Debug)]
 pub struct Scanner<'a> {
     source: &'a str,
     tokens: Vec<Token>,
@@ -33,6 +34,7 @@ impl<'a> Scanner<'a> {
     fn scan_token(&mut self, c: char) {
         match &self.literal {
             Literal::Comment if c != '\n' => return,
+            Literal::MultiComment if !self.multi_comment_end(c) => return,
             Literal::Str(_) => {
                 self.add_to_string(c);
                 return
@@ -58,7 +60,7 @@ impl<'a> Scanner<'a> {
             '-' => self.add_single_token(TokenType::Minus, c),
             '+' => self.add_single_token(TokenType::Plus, c),
             ';' => self.add_single_token(TokenType::SemiColon, c),
-            '*' => self.add_single_token(TokenType::Star, c),
+            '*' => self.add_multi_token(c),
             '!' => self.add_multi_token(c),
             '=' => self.add_multi_token(c),
             '<' => self.add_multi_token(c),
@@ -120,11 +122,14 @@ impl<'a> Scanner<'a> {
             Literal::Number(_) => self.add_token(TokenType::Number),
             Literal::Identifier => self.add_token(self.identifier_type()),
             Literal::Comment => return,
+            Literal::MultiComment if self.current_token.as_str() != "*/" => return,
             _ => ()
         };
 
         match self.current_token.as_str() {
-            "/" if c != '/' => self.add_token(TokenType::Slash),
+            "/" if c != '/' && c != '*' => self.add_token(TokenType::Slash),
+            "*" if c != '/' && self.literal != Literal::MultiComment => self.add_token(TokenType::Star),
+            "*" if c != '/' && self.literal == Literal::MultiComment => self.current_token = String::new(),
             "=" if c != '=' => self.add_token(TokenType::Equal),
             "!" if c != '=' => self.add_token(TokenType::Bang),
             "<" if c != '=' => self.add_token(TokenType::Less),
@@ -134,6 +139,8 @@ impl<'a> Scanner<'a> {
             "<=" => self.add_token(TokenType::LessEqual),
             ">=" => self.add_token(TokenType::GreaterEqual),
             "//" => self.add_comment(),
+            "/*" => self.add_comment(),
+            "*/" => self.end_comment(),
             "" => (),
             _ => ()
         };
@@ -150,8 +157,11 @@ impl<'a> Scanner<'a> {
         self.literal = Literal::Nothing;
     }
 
+    fn advance(&mut self, c: char) {
+        self.current_token.push(c);
+    }
+
     fn identifier_type(&self) -> TokenType {
-        dbg!(&self.current_token);
         match self.current_token.as_str() {
             "and" => TokenType::And,
             "class" => TokenType::Class,
@@ -173,10 +183,6 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    fn advance(&mut self, c: char) {
-        self.current_token.push(c);
-    }
-
     fn white_space(&mut self, c: char) {
         if c == '\n' {
             self.new_line();
@@ -192,12 +198,37 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_comment(&mut self) {
-        self.literal = Literal::Comment;
+        if self.current_token.as_str() == "//" {
+            self.literal = Literal::Comment;
+        } else {
+            self.literal = Literal::MultiComment;
+        }
+        self.current_token = String::new();
+    }
+
+    fn end_comment(&mut self) {
+        self.literal = Literal::Nothing;
         self.current_token = String::new();
     }
 
     fn add_error(&mut self, line: u32, message: &str) {
         self.errors.push(format!("{} {}", line, message));
+    }
+
+    fn multi_comment_end(&self, c: char) -> bool {
+        if self.current_token.as_str() == "*/" {
+            return true
+        }
+
+        if self.current_token.as_str() == "*" && c == '/' {
+            return true
+        }
+
+        if c == '*' {
+            return true
+        }
+
+        false
     }
 }
 

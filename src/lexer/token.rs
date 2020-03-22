@@ -84,6 +84,7 @@ pub enum Literal {
     Str(String),
     Number(f32),
     Comment,
+    MultiComment,
     Identifier,
     Nothing
 }

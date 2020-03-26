@@ -1,2 +1,2 @@
 pub mod scanner;
-mod token;
+pub mod token;

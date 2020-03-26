@@ -1,7 +1,7 @@
 use crate::lexer::token::Token;
 
 /* 
-    Wrapper for printing AST tree in Lisp-like format
+    Wrapper for printing AST in Lisp-like format
     Example use:
     let expr = Binary::new(
         Box::new(
@@ -22,6 +22,41 @@ use crate::lexer::token::Token;
 pub struct AstPrinter;
 
 impl AstPrinter {
+    #[allow(dead_code)]
+    pub fn print<E: Expr>(&mut self, expr: &E) {
+        println!("{}", expr.accept(self));
+    }
+}
+
+/*
+    Wrapper for printing AST in Reverse Polish Notation (RPN)
+    Example use:
+    let expr = Binary::new(
+        Box::new(Grouping::new(
+            Box::new(Binary::new(
+                Box::new(Literal::new(1 as f64)),
+                Token::new(TokenType::Plus, "+".to_string(), TokenLiteral::Nothing, 1),
+                Box::new(Literal::new(2 as f64))
+            ),
+        ))),
+        Token::new(TokenType::Star, "*".to_string(), TokenLiteral::Nothing, 1),
+        Box::new(Grouping::new(
+            Box::new(Binary::new(
+                Box::new(Literal::new(4 as f64)),
+                Token::new(TokenType::Minus, "-".to_string(), TokenLiteral::Nothing, 1),
+                Box::new(Literal::new(3 as f64))
+            ),
+        ),
+    )));
+    let mut rpn_printer = RpnPrinter;
+    rpn_printer.print(&expr);
+*/
+
+
+pub struct RpnPrinter;
+
+impl RpnPrinter {
+    #[allow(dead_code)]
     pub fn print<E: Expr>(&mut self, expr: &E) {
         println!("{}", expr.accept(self));
     }
@@ -150,8 +185,8 @@ impl Visitor for AstPrinter {
     
     fn visit_binary_expr<L: Expr, R: Expr>(&mut self, binary_expr: &Binary<L, R>) -> Self::Result {
         let mut tree = format!("({} ", binary_expr.operator.lexme);
-        tree.push_str(binary_expr.left.accept(self).as_str());
-        tree.push_str(binary_expr.right.accept(self).as_str());
+        tree.push_str(&binary_expr.left.accept(self));
+        tree.push_str(&binary_expr.right.accept(self));
         tree.push_str(") ");
         tree
     }
@@ -169,16 +204,58 @@ impl Visitor for AstPrinter {
 
     fn visit_logical_expr<L: Expr, R: Expr>(&mut self, logical_expr: &Logical<L, R>) -> Self::Result {
         let mut tree = format!("({} ", logical_expr.operator.lexme);
-        tree.push_str(logical_expr.left.accept(self).as_str());
-        tree.push_str(logical_expr.right.accept(self).as_str());
+        tree.push_str(&logical_expr.left.accept(self));
+        tree.push_str(&logical_expr.right.accept(self));
         tree.push_str(") ");
         tree
     }
 
     fn visit_unary_expr<R: Expr>(&mut self, unary_expr: &Unary<R>) -> Self::Result {
         let mut tree = format!("({} ", unary_expr.operator.lexme);
-        tree.push_str(unary_expr.right.accept(self).as_str());
+        tree.push_str(&unary_expr.right.accept(self));
         tree.push_str(") ");
+        tree
+    }
+}
+
+impl Visitor for RpnPrinter {
+    type Result = String;
+    
+    fn visit_binary_expr<L: Expr, R: Expr>(&mut self, binary_expr: &Binary<L, R>) -> Self::Result {
+        let mut tree = String::new();
+        tree.push_str(&binary_expr.left.accept(self));
+        tree.push_str(" ");
+        tree.push_str(&binary_expr.right.accept(self));
+        tree.push_str(" ");
+        tree.push_str(&binary_expr.operator.lexme);
+        tree
+    }
+
+    fn visit_grouping_expr<E: Expr>(&mut self, grouping_expr: &Grouping<E>) -> Self::Result {
+        format!("{}", grouping_expr.expression.accept(self))
+    }
+
+    fn visit_literal_expr(&mut self, literal_expr: &Literal) -> Self::Result {
+        match &literal_expr.value {
+            Some(v) => v.to_string(),
+            None => "nil".to_string()
+        }
+    }
+
+    fn visit_logical_expr<L: Expr, R: Expr>(&mut self, logical_expr: &Logical<L, R>) -> Self::Result {
+        let mut tree = String::new();
+        tree.push_str(&logical_expr.left.accept(self));
+        tree.push_str(" ");
+        tree.push_str(&logical_expr.right.accept(self));
+        tree.push_str(" ");
+        tree.push_str(&logical_expr.operator.lexme);
+        tree
+    }
+
+    fn visit_unary_expr<R: Expr>(&mut self, unary_expr: &Unary<R>) -> Self::Result {
+        let mut tree = String::new();
+        tree.push_str(&unary_expr.right.accept(self));
+        tree.push_str(&unary_expr.operator.lexme);
         tree
     }
 }

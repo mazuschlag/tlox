@@ -1,21 +1,31 @@
 use crate::lexer::token::Token;
 
+#[derive(Debug)]
+pub enum Expr {
+    Binary(Box<Expr>, Token, Box<Expr>),
+    Grouping(Box<Expr>),
+    Literal(Option<String>),
+    Logical(Box<Expr>, Token, Box<Expr>),
+    Unary(Token, Box<Expr>)
+}
+
 /* 
     Wrapper for printing AST in Lisp-like format
     Example use:
-    let expr = Binary::new(
-        Box::new(
-            Unary::new(
-                Token::new(TokenType::Minus, "-".to_string(), TokenLiteral::Nothing, 1),
-                Box::new(Literal::new(123 as f64))
-            )), 
+    use lexer::token::{Token, TokenType, Literal as TokenLiteral};
+    use parser::expression::{Expr, AstPrinter};
+
+    let expr = Expr::Binary(
+        Box::new(Expr::Unary(
+            Token::new(TokenType::Minus, "-".to_string(), TokenLiteral::Nothing, 1),
+            Box::new(Expr::Literal(Some("123".to_string())))
+        )),
         Token::new(TokenType::Star, "*".to_string(), TokenLiteral::Nothing, 1),
-        Box::new(
-            Grouping::new(
-                Box::new(Literal::new(45.67))
-            ))
-        );
-    let mut ast_printer = AstPrinter;
+        Box::new(Expr::Grouping(
+            Box::new(Expr::Literal(Some("456".to_string())))
+        ))
+    );
+    let ast_printer = AstPrinter;
     ast_printer.print(&expr);
 */
 
@@ -23,32 +33,79 @@ pub struct AstPrinter;
 
 impl AstPrinter {
     #[allow(dead_code)]
-    pub fn print<T: Expr>(&mut self, expr: &T) {
-        println!("{}", expr.accept(self));
+    pub fn print(&self, expr: &Expr) {
+        println!("{}", self.visit(expr));
+    }
+    
+    fn visit(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Binary(left, operator, right) => self.visit_binary_expr(&left, &operator, &right),
+            Expr::Grouping(group) => self.visit_grouping_expr(&group),
+            Expr::Literal(literal) => self.visit_literal_expr(literal),
+            Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
+            Expr::Unary(operator, right) => self.visit_unary_expr(&operator, &right)
+        }
+    }
+
+    fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
+        let mut tree = format!("({} ", operator.lexme);
+        tree.push_str(&self.visit(&left));
+        tree.push_str(&self.visit(&right));
+        tree.push_str(") ");
+        tree
+    }
+
+    fn visit_grouping_expr(&self, group: &Expr) -> String {
+        format!("({})", self.visit(&group))
+    }
+
+    fn visit_literal_expr(&self, literal: &Option<String>) -> String {
+        match literal {
+            Some(v) => v,
+            None => "nil"
+        }.to_string()
+    }
+
+    fn visit_logical_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
+        let mut tree = format!("({} ", operator.lexme);
+        tree.push_str(&self.visit(&left));
+        tree.push_str(&self.visit(&right));
+        tree.push_str(") ");
+        tree
+    }
+
+    fn visit_unary_expr(&self, operator: &Token, right: &Expr) -> String {
+        let mut tree = format!("({} ", operator.lexme);
+        tree.push_str(&self.visit(&right));
+        tree.push_str(") ");
+        tree
     }
 }
 
 /*
     Wrapper for printing AST in Reverse Polish Notation (RPN)
     Example use:
-    let expr = Binary::new(
-        Box::new(Grouping::new(
-            Box::new(Binary::new(
-                Box::new(Literal::new(1 as f64)),
+    use lexer::token::{Token, TokenType, Literal as TokenLiteral};
+    use parser::expression::{Expr, RpnPrinter};
+
+    let expr = Expr::Binary(
+        Box::new(Expr::Grouping(
+            Box::new(Expr::Binary(
+                Box::new(Expr::Literal(Some("1".to_string()))),
                 Token::new(TokenType::Plus, "+".to_string(), TokenLiteral::Nothing, 1),
-                Box::new(Literal::new(2 as f64))
+                Box::new(Expr::Literal(Some("2".to_string())))
             ),
         ))),
         Token::new(TokenType::Star, "*".to_string(), TokenLiteral::Nothing, 1),
-        Box::new(Grouping::new(
-            Box::new(Binary::new(
-                Box::new(Literal::new(4 as f64)),
+        Box::new(Expr::Grouping(
+            Box::new(Expr::Binary(
+                Box::new(Expr::Literal(Some("4".to_string()))),
                 Token::new(TokenType::Minus, "-".to_string(), TokenLiteral::Nothing, 1),
-                Box::new(Literal::new(3 as f64))
+                Box::new(Expr::Literal(Some("3".to_string())))
             ),
         ),
     )));
-    let mut rpn_printer = RpnPrinter;
+    let rpn_printer = RpnPrinter;
     rpn_printer.print(&expr);
 */
 
@@ -57,205 +114,55 @@ pub struct RpnPrinter;
 
 impl RpnPrinter {
     #[allow(dead_code)]
-    pub fn print<T: Expr>(&mut self, expr: &T) {
-        println!("{}", expr.accept(self));
-    }
-}
-
-#[derive(Debug)]
-pub struct Binary<L: Expr, R: Expr> {
-    left: Box<L>,
-    operator: Token,
-    right: Box<R>
-}
-
-impl<L: Expr, R: Expr> Binary<L, R> {
-    pub fn new(left: Box<L>, operator: Token, right: Box<R>) -> Binary<L, R> {
-        Binary {
-            left,
-            operator,
-            right
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Grouping<T: Expr> {
-    expression: Box<T>
-}
-
-impl<T: Expr> Grouping<T> {
-    pub fn new(expression: Box<T>) -> Grouping<T> {
-        Grouping {
-            expression
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Literal {
-    value: Option<f64>
-}
-
-impl Literal {
-    pub fn new(value: f64) -> Literal {
-        Literal {
-            value: Some(value)
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Logical<L: Expr, R: Expr> {
-    left: Box<L>,
-    operator: Token,
-    right: Box<R>
-}
-
-impl<L: Expr, R: Expr> Logical<L, R> {
-    pub fn new(left: Box<L>, operator: Token, right: Box<R>) -> Logical<L, R> {
-        Logical {
-            left,
-            operator,
-            right
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Unary<R: Expr> {
-    operator: Token,
-    right: Box<R>
-}
-
-impl<R: Expr> Unary<R> {
-    pub fn new(operator: Token, right: Box<R>) -> Unary<R> {
-        Unary {
-            operator,
-            right
-        }
-    }
-}
-
-pub trait Expr {
-    fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result;
-}
-
-impl<L: Expr, R: Expr> Expr for Binary<L, R> {
-    fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result {
-        visitor.visit_binary_expr(self)
-    }
-}
-
-impl<T: Expr> Expr for Grouping<T> {
-    fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result {
-        visitor.visit_grouping_expr(self)
-    }
-}
-
-impl Expr for Literal {
-    fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result {
-        visitor.visit_literal_expr(self)
-    }
-}
-
-impl<L: Expr, R: Expr> Expr for Logical<L, R> {
-    fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result {
-        visitor.visit_logical_expr(self)
-    }
-}
-
-impl<R: Expr> Expr for Unary<R> {
-    fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result {
-        visitor.visit_unary_expr(self)
-    }
-}
-
-pub trait Visitor {
-    type Result;
-    fn visit_binary_expr<L: Expr, R: Expr>(&mut self, binary_expr: &Binary<L, R>) -> Self::Result;
-    fn visit_grouping_expr<T: Expr>(&mut self, grouping_expr: &Grouping<T>) -> Self::Result;
-    fn visit_literal_expr(&mut self, literal_expr: &Literal) -> Self::Result;
-    fn visit_logical_expr<L: Expr, R: Expr>(&mut self, logical_expr: &Logical<L, R>) -> Self::Result;
-    fn visit_unary_expr<R: Expr>(&mut self, unary_expr: &Unary<R>) -> Self::Result;
-}
-
-impl Visitor for AstPrinter {
-    type Result = String;
-    
-    fn visit_binary_expr<L: Expr, R: Expr>(&mut self, binary_expr: &Binary<L, R>) -> Self::Result {
-        let mut tree = format!("({} ", binary_expr.operator.lexme);
-        tree.push_str(&binary_expr.left.accept(self));
-        tree.push_str(&binary_expr.right.accept(self));
-        tree.push_str(") ");
-        tree
+    pub fn print(&self, expr: &Expr) {
+        println!("{}", self.visit(expr));
     }
 
-    fn visit_grouping_expr<T: Expr>(&mut self, grouping_expr: &Grouping<T>) -> Self::Result {
-        format!("({})", grouping_expr.expression.accept(self))
-    }
-
-    fn visit_literal_expr(&mut self, literal_expr: &Literal) -> Self::Result {
-        match &literal_expr.value {
-            Some(v) => v.to_string(),
-            None => "nil".to_string()
+    fn visit(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Binary(left, operator, right) => self.visit_binary_expr(&left, &operator, &right),
+            Expr::Grouping(group) => self.visit_grouping_expr(&group),
+            Expr::Literal(literal) => self.visit_literal_expr(literal),
+            Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
+            Expr::Unary(operator, right) => self.visit_unary_expr(&operator, &right)
         }
     }
 
-    fn visit_logical_expr<L: Expr, R: Expr>(&mut self, logical_expr: &Logical<L, R>) -> Self::Result {
-        let mut tree = format!("({} ", logical_expr.operator.lexme);
-        tree.push_str(&logical_expr.left.accept(self));
-        tree.push_str(&logical_expr.right.accept(self));
-        tree.push_str(") ");
-        tree
-    }
-
-    fn visit_unary_expr<R: Expr>(&mut self, unary_expr: &Unary<R>) -> Self::Result {
-        let mut tree = format!("({} ", unary_expr.operator.lexme);
-        tree.push_str(&unary_expr.right.accept(self));
-        tree.push_str(") ");
-        tree
-    }
-}
-
-impl Visitor for RpnPrinter {
-    type Result = String;
-    
-    fn visit_binary_expr<L: Expr, R: Expr>(&mut self, binary_expr: &Binary<L, R>) -> Self::Result {
+    fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
         let mut tree = String::new();
-        tree.push_str(&binary_expr.left.accept(self));
+        tree.push_str(&self.visit(&left));
         tree.push_str(" ");
-        tree.push_str(&binary_expr.right.accept(self));
+        tree.push_str(&self.visit(&right));
         tree.push_str(" ");
-        tree.push_str(&binary_expr.operator.lexme);
+        tree.push_str(&operator.lexme);
         tree
     }
 
-    fn visit_grouping_expr<T: Expr>(&mut self, grouping_expr: &Grouping<T>) -> Self::Result {
-        format!("{}", grouping_expr.expression.accept(self))
+    fn visit_grouping_expr(&self, group: &Expr) -> String {
+        self.visit(&group)
     }
 
-    fn visit_literal_expr(&mut self, literal_expr: &Literal) -> Self::Result {
-        match &literal_expr.value {
-            Some(v) => v.to_string(),
-            None => "nil".to_string()
-        }
+    fn visit_literal_expr(&self, literal: &Option<String>) -> String {
+        match literal {
+            Some(v) => v,
+            None => "nil"
+        }.to_string()
     }
 
-    fn visit_logical_expr<L: Expr, R: Expr>(&mut self, logical_expr: &Logical<L, R>) -> Self::Result {
+    fn visit_logical_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
         let mut tree = String::new();
-        tree.push_str(&logical_expr.left.accept(self));
+        tree.push_str(&self.visit(&left));
         tree.push_str(" ");
-        tree.push_str(&logical_expr.right.accept(self));
+        tree.push_str(&self.visit(&right));
         tree.push_str(" ");
-        tree.push_str(&logical_expr.operator.lexme);
+        tree.push_str(&operator.lexme);
         tree
     }
 
-    fn visit_unary_expr<R: Expr>(&mut self, unary_expr: &Unary<R>) -> Self::Result {
+    fn visit_unary_expr(&self, operator: &Token, right: &Expr) -> String {
         let mut tree = String::new();
-        tree.push_str(&unary_expr.right.accept(self));
-        tree.push_str(&unary_expr.operator.lexme);
+        tree.push_str(&self.visit(&right));
+        tree.push_str(&operator.lexme);
         tree
     }
 }

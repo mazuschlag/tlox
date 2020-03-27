@@ -23,7 +23,7 @@ pub struct AstPrinter;
 
 impl AstPrinter {
     #[allow(dead_code)]
-    pub fn print<E: Expr>(&mut self, expr: &E) {
+    pub fn print<T: Expr>(&mut self, expr: &T) {
         println!("{}", expr.accept(self));
     }
 }
@@ -57,7 +57,7 @@ pub struct RpnPrinter;
 
 impl RpnPrinter {
     #[allow(dead_code)]
-    pub fn print<E: Expr>(&mut self, expr: &E) {
+    pub fn print<T: Expr>(&mut self, expr: &T) {
         println!("{}", expr.accept(self));
     }
 }
@@ -80,12 +80,12 @@ impl<L: Expr, R: Expr> Binary<L, R> {
 }
 
 #[derive(Debug)]
-pub struct Grouping<E: Expr> {
-    expression: Box<E>
+pub struct Grouping<T: Expr> {
+    expression: Box<T>
 }
 
-impl<E: Expr> Grouping<E> {
-    pub fn new(expression: Box<E>) -> Grouping<E> {
+impl<T: Expr> Grouping<T> {
+    pub fn new(expression: Box<T>) -> Grouping<T> {
         Grouping {
             expression
         }
@@ -147,7 +147,7 @@ impl<L: Expr, R: Expr> Expr for Binary<L, R> {
     }
 }
 
-impl<E: Expr> Expr for Grouping<E> {
+impl<T: Expr> Expr for Grouping<T> {
     fn accept<V: Visitor>(&self, visitor: &mut V) -> V::Result {
         visitor.visit_grouping_expr(self)
     }
@@ -174,7 +174,7 @@ impl<R: Expr> Expr for Unary<R> {
 pub trait Visitor {
     type Result;
     fn visit_binary_expr<L: Expr, R: Expr>(&mut self, binary_expr: &Binary<L, R>) -> Self::Result;
-    fn visit_grouping_expr<E: Expr>(&mut self, grouping_expr: &Grouping<E>) -> Self::Result;
+    fn visit_grouping_expr<T: Expr>(&mut self, grouping_expr: &Grouping<T>) -> Self::Result;
     fn visit_literal_expr(&mut self, literal_expr: &Literal) -> Self::Result;
     fn visit_logical_expr<L: Expr, R: Expr>(&mut self, logical_expr: &Logical<L, R>) -> Self::Result;
     fn visit_unary_expr<R: Expr>(&mut self, unary_expr: &Unary<R>) -> Self::Result;
@@ -191,7 +191,7 @@ impl Visitor for AstPrinter {
         tree
     }
 
-    fn visit_grouping_expr<E: Expr>(&mut self, grouping_expr: &Grouping<E>) -> Self::Result {
+    fn visit_grouping_expr<T: Expr>(&mut self, grouping_expr: &Grouping<T>) -> Self::Result {
         format!("({})", grouping_expr.expression.accept(self))
     }
 
@@ -231,7 +231,7 @@ impl Visitor for RpnPrinter {
         tree
     }
 
-    fn visit_grouping_expr<E: Expr>(&mut self, grouping_expr: &Grouping<E>) -> Self::Result {
+    fn visit_grouping_expr<T: Expr>(&mut self, grouping_expr: &Grouping<T>) -> Self::Result {
         format!("{}", grouping_expr.expression.accept(self))
     }
 

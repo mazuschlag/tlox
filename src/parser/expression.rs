@@ -1,10 +1,10 @@
-use crate::lexer::token::Token;
+use crate::lexer::token::{Token, Literal};
 
 #[derive(Debug)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
-    Literal(Option<String>),
+    Literal(Literal),
     Logical(Box<Expr>, Token, Box<Expr>),
     Unary(Token, Box<Expr>)
 }
@@ -18,11 +18,11 @@ pub enum Expr {
     let expr = Expr::Binary(
         Box::new(Expr::Unary(
             Token::new(TokenType::Minus, "-".to_string(), TokenLiteral::Nothing, 1),
-            Box::new(Expr::Literal(Some("123".to_string())))
+            Box::new(Expr::Literal(Literal::Number(123.0)))
         )),
         Token::new(TokenType::Star, "*".to_string(), TokenLiteral::Nothing, 1),
         Box::new(Expr::Grouping(
-            Box::new(Expr::Literal(Some("456".to_string())))
+            Box::new(Expr::Literal(Literal::Number(456.0)))
         ))
     );
     let ast_printer = AstPrinter;
@@ -59,11 +59,13 @@ impl AstPrinter {
         format!("({})", self.visit(&group))
     }
 
-    fn visit_literal_expr(&self, literal: &Option<String>) -> String {
+    fn visit_literal_expr(&self, literal: &Literal) -> String {
         match literal {
-            Some(v) => v,
-            None => "nil"
-        }.to_string()
+            Literal::Str(string) => string.to_owned(),
+            Literal::Number(num) => format!("{}", num),
+            Literal::Bool(boolean) => format!("{}", boolean),
+            Nil => "null".to_owned()
+        }
     }
 
     fn visit_logical_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
@@ -91,17 +93,17 @@ impl AstPrinter {
     let expr = Expr::Binary(
         Box::new(Expr::Grouping(
             Box::new(Expr::Binary(
-                Box::new(Expr::Literal(Some("1".to_string()))),
+                Box::new(Expr::Literal(Literal::Number(1.0))),
                 Token::new(TokenType::Plus, "+".to_string(), TokenLiteral::Nothing, 1),
-                Box::new(Expr::Literal(Some("2".to_string())))
+                Box::new(Expr::Literal(Literal::Number(2.0)))
             ),
         ))),
         Token::new(TokenType::Star, "*".to_string(), TokenLiteral::Nothing, 1),
         Box::new(Expr::Grouping(
             Box::new(Expr::Binary(
-                Box::new(Expr::Literal(Some("4".to_string()))),
+                Box::new(Expr::Literal(Literal::Number(4.0))),
                 Token::new(TokenType::Minus, "-".to_string(), TokenLiteral::Nothing, 1),
-                Box::new(Expr::Literal(Some("3".to_string())))
+                Box::new(Expr::Literal(Literal::Number(3.0)))
             ),
         ),
     )));
@@ -142,11 +144,13 @@ impl RpnPrinter {
         self.visit(&group)
     }
 
-    fn visit_literal_expr(&self, literal: &Option<String>) -> String {
+    fn visit_literal_expr(&self, literal: &Literal) -> String {
         match literal {
-            Some(v) => v,
-            None => "nil"
-        }.to_string()
+            Literal::Str(string) => string.to_owned(),
+            Literal::Number(num) => format!("{}", num),
+            Literal::Bool(boolean) => format!("{}", boolean),
+            Nil => "null".to_owned()
+        }
     }
 
     fn visit_logical_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {

@@ -54,11 +54,11 @@ impl fmt::Display for TokenType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
     pub typ: TokenType,
     pub lexme: String,
-    literal: Literal,
+    pub literal: Literal,
     line: u32
 }
 
@@ -83,6 +83,7 @@ impl fmt::Display for Token {
 pub enum Literal {
     Str(String),
     Number(f32),
+    Bool(bool),
     Comment,
     MultiComment,
     Identifier,

@@ -63,7 +63,7 @@ impl AstPrinter {
 
     fn visit_literal_expr(&self, literal: &Literal) -> String {
         match literal {
-            Literal::Str(string) => string.to_owned(),
+            Literal::Str(string) => format!("\"{}\"", string),
             Literal::Number(num) => format!("{}", num),
             Literal::Bool(boolean) => format!("{}", boolean),
             _ => "null".to_owned()

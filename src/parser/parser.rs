@@ -43,7 +43,10 @@ impl<'a> Parser<'a> {
             match self.consume(TokenType::Colon, "Expect ':' in ternary expression.") {
                 Ok(colon) => {
                     let right = self.expression()?;
-                    return Ok(Box::new(Expr::Ternary(expr, question_mark, middle, colon, right))) 
+                    if !self.is_at_end() {
+                        return Err(self.parse_error("Unexpected token."))
+                    }
+                    return Ok(Box::new(Expr::Ternary(expr, question_mark, middle, colon, right)))
                 },
                 Err(message) => return Err(message)
             }

@@ -22,7 +22,17 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> ParseResult {
-        self.equality()
+        self.comma()
+    }
+
+    fn comma(&mut self) -> ParseResult {
+        let mut expr = self.equality()?;
+        while self.matches(&[TokenType::Comma]) {
+            let operator = self.previous().clone();
+            let right = self.equality()?;
+            expr = Box::new(Expr::Binary(expr, operator, right));
+        }
+        Ok(expr)
     }
 
     fn equality(&mut self) -> ParseResult {

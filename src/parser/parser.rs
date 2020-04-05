@@ -39,16 +39,16 @@ impl<'a> Parser<'a> {
         let expr = self.equality()?;
         if self.matches(&[TokenType::QuestionMark]) {
             let question_mark = self.previous().clone();
-            let middle = self.equality()?;
+            let middle = self.expression()?;
             match self.consume(TokenType::Colon, "Expect ':' in ternary expression.") {
                 Ok(colon) => {
-                    let right = self.equality()?;
+                    let right = self.expression()?;
                     return Ok(Box::new(Expr::Ternary(expr, question_mark, middle, colon, right))) 
                 },
                 Err(message) => return Err(message)
             }
         }
-        self.equality()
+        Ok(expr)
     }
 
     fn equality(&mut self) -> ParseResult {

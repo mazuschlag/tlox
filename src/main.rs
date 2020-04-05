@@ -42,8 +42,11 @@ fn run(source: &str) {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens);
-    let expression = parser.parse();
-    AstPrinter.print(&expression);
+    let parse_result = parser.parse();
+    match &parse_result {
+        Ok(expression) => AstPrinter.print(expression),
+        Err(message) => println!("{}", message)
+    };
 }
 
 fn new_line() {

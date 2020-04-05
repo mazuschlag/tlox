@@ -5,6 +5,7 @@ pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Literal),
+    #[allow(dead_code)]
     Logical(Box<Expr>, Token, Box<Expr>),
     Unary(Token, Box<Expr>)
 }
@@ -50,8 +51,9 @@ impl AstPrinter {
     fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
         let mut tree = format!("({} ", operator.lexme);
         tree.push_str(&self.visit(&left));
+        tree.push_str(" ");
         tree.push_str(&self.visit(&right));
-        tree.push_str(") ");
+        tree.push_str(")");
         tree
     }
 
@@ -64,22 +66,23 @@ impl AstPrinter {
             Literal::Str(string) => string.to_owned(),
             Literal::Number(num) => format!("{}", num),
             Literal::Bool(boolean) => format!("{}", boolean),
-            Nil => "null".to_owned()
+            _ => "null".to_owned()
         }
     }
 
     fn visit_logical_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
         let mut tree = format!("({} ", operator.lexme);
         tree.push_str(&self.visit(&left));
+        tree.push_str(" ");
         tree.push_str(&self.visit(&right));
-        tree.push_str(") ");
+        tree.push_str(")");
         tree
     }
 
     fn visit_unary_expr(&self, operator: &Token, right: &Expr) -> String {
         let mut tree = format!("({} ", operator.lexme);
         tree.push_str(&self.visit(&right));
-        tree.push_str(") ");
+        tree.push_str(")");
         tree
     }
 }
@@ -149,7 +152,7 @@ impl RpnPrinter {
             Literal::Str(string) => string.to_owned(),
             Literal::Number(num) => format!("{}", num),
             Literal::Bool(boolean) => format!("{}", boolean),
-            Nil => "null".to_owned()
+            _ => "null".to_owned()
         }
     }
 
@@ -166,6 +169,7 @@ impl RpnPrinter {
     fn visit_unary_expr(&self, operator: &Token, right: &Expr) -> String {
         let mut tree = String::new();
         tree.push_str(&self.visit(&right));
+        tree.push_str(" ");
         tree.push_str(&operator.lexme);
         tree
     }

@@ -1,17 +1,22 @@
 use crate::lexer::token::{Token, TokenType, Literal};
+use crate::error::report::error;
 use super::expression::Expr;
 
-struct Parser {
-    tokens: Vec<Token>,
+pub struct Parser<'a> {
+    tokens: &'a Vec<Token>,
     current: usize
 }
 
-impl Parser {
-    fn new(tokens: Vec<Token>) -> Parser {
+impl<'a> Parser<'a> {
+    pub fn new(tokens: &Vec<Token>) -> Parser {
         Parser {
             tokens: tokens,
             current: 0
         }
+    }
+
+    pub fn parse(&mut self) -> Box<Expr> {
+        self.expression()
     }
 
     fn expression(&mut self) -> Box<Expr> {
@@ -86,15 +91,39 @@ impl Parser {
 
         if self.matches(&[TokenType::LeftParen]) {
             let expr = self.expression();
-            self.consume(TokenType::RightParen, "Expect ')' after expression.");
-            return Box::new(Expr::Grouping(expr))
+            match self.consume(TokenType::RightParen, "Expect ')' after expression.") {
+                Ok(_) => return Box::new(Expr::Grouping(expr)),
+                Err(message) => panic!(message)
+            }
         }
-
-        return Box::new(Expr::Literal(Literal::Nothing))
+        panic!(self.parse_error("Expect expression."))
     }
 
-    fn consume(&mut self, token_type: TokenType, error: &str) {
+    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<Token, String> {
+        if self.check(&token_type) {
+            return Ok(self.advance().clone());
+        }
+        Err(self.parse_error(message))
+    }
 
+    fn _synchronize(&mut self) {
+        self.advance();
+        while !self.is_at_end() {
+            if self.previous().typ == TokenType::SemiColon {
+                return
+            }
+            match self.peek().typ {
+                TokenType::Class | TokenType::Fun | TokenType::Var | TokenType::For | 
+                TokenType::If | TokenType::While | TokenType::Print | TokenType::Return => return,
+                _ => ()
+            };
+            self.advance();
+        }
+    }
+
+    fn parse_error(&self, message: &str) -> String {
+        let token = self.peek();
+        error(token, message)
     }
 
     fn matches(&mut self, token_types: &[TokenType]) -> bool {

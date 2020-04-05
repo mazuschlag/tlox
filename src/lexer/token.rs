@@ -59,7 +59,7 @@ pub struct Token {
     pub typ: TokenType,
     pub lexme: String,
     pub literal: Literal,
-    line: u32
+    pub line: u32
 }
 
 impl Token {

@@ -1,10 +1,13 @@
 mod lexer;
 mod parser;
+mod error;
 
 use std::env;
 use std::fs::File;
 use std::io::{self, Read, BufRead, Write};
 use lexer::scanner::Scanner;
+use parser::parser::Parser;
+use parser::expression::AstPrinter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -37,19 +40,13 @@ fn run_prompt() {
 
 fn run(source: &str) {
     let mut scanner = Scanner::new(source);
-    println!("Tokens: {:?}", scanner.scan_tokens());
+    let tokens = scanner.scan_tokens();
+    let mut parser = Parser::new(tokens);
+    let expression = parser.parse();
+    AstPrinter.print(&expression);
 }
 
 fn new_line() {
     print!("> ");
     io::stdout().flush().unwrap();
-}
-
-// Should actually use Result enum, but implement later
-fn _error(line: u32, message: &str) {
-    _report(line, "", message);
-}
-
-fn _report(line: u32, offender: &str, message: &str) {
-    println!("[line {}] Error {}: {}", line, offender, message);
 }

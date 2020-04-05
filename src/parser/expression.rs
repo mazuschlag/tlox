@@ -3,6 +3,7 @@ use crate::lexer::token::{Token, Literal};
 #[derive(Debug)]
 pub enum Expr {
     Binary(Box<Expr>, Token, Box<Expr>),
+    Ternary(Box<Expr>, Token, Box<Expr>, Token, Box<Expr>),
     Grouping(Box<Expr>),
     Literal(Literal),
     #[allow(dead_code)]
@@ -41,6 +42,7 @@ impl AstPrinter {
     fn visit(&self, expr: &Expr) -> String {
         match expr {
             Expr::Binary(left, operator, right) => self.visit_binary_expr(&left, &operator, &right),
+            Expr::Ternary(left, question_mark, middle, colon, right) => self.visit_ternary_expr(&left, &question_mark, &middle, &colon, &right),
             Expr::Grouping(group) => self.visit_grouping_expr(&group),
             Expr::Literal(literal) => self.visit_literal_expr(literal),
             Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
@@ -51,6 +53,19 @@ impl AstPrinter {
     fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> String {
         let mut tree = format!("({} ", operator.lexme);
         tree.push_str(&self.visit(&left));
+        tree.push_str(" ");
+        tree.push_str(&self.visit(&right));
+        tree.push_str(")");
+        tree
+    }
+
+    fn visit_ternary_expr(&self, left: &Expr, question_mark: &Token, middle: &Expr, colon: &Token, right: &Expr) -> String {
+        let mut tree = format!("({} ", question_mark.lexme);
+        tree.push_str(&self.visit(&left));
+        tree.push_str(" ");
+        tree.push_str(&colon.lexme);
+        tree.push_str(" ");
+        tree.push_str(&self.visit(&middle));
         tree.push_str(" ");
         tree.push_str(&self.visit(&right));
         tree.push_str(")");
@@ -126,6 +141,7 @@ impl RpnPrinter {
     fn visit(&self, expr: &Expr) -> String {
         match expr {
             Expr::Binary(left, operator, right) => self.visit_binary_expr(&left, &operator, &right),
+            Expr::Ternary(left, question_mark, middle, colon, right) => self.visit_ternary_expr(&left, &question_mark, &middle, &colon, &right),
             Expr::Grouping(group) => self.visit_grouping_expr(&group),
             Expr::Literal(literal) => self.visit_literal_expr(literal),
             Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
@@ -140,6 +156,20 @@ impl RpnPrinter {
         tree.push_str(&self.visit(&right));
         tree.push_str(" ");
         tree.push_str(&operator.lexme);
+        tree
+    }
+
+    fn visit_ternary_expr(&self, left: &Expr, question_mark: &Token, middle: &Expr, colon: &Token, right: &Expr) -> String {
+        let mut tree = String::new();
+        tree.push_str(&self.visit(&middle));
+        tree.push_str(" ");
+        tree.push_str(&self.visit(&right));
+        tree.push_str(" ");
+        tree.push_str(&colon.lexme);
+        tree.push_str(" ");
+        tree.push_str(&self.visit(&left));
+        tree.push_str(" ");
+        tree.push_str(&question_mark.lexme);
         tree
     }
 

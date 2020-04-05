@@ -26,13 +26,29 @@ impl<'a> Parser<'a> {
     }
 
     fn comma(&mut self) -> ParseResult {
-        let mut expr = self.equality()?;
+        let mut expr = self.ternary()?;
         while self.matches(&[TokenType::Comma]) {
             let operator = self.previous().clone();
             let right = self.equality()?;
             expr = Box::new(Expr::Binary(expr, operator, right));
         }
         Ok(expr)
+    }
+
+    fn ternary(&mut self) -> ParseResult {
+        let expr = self.equality()?;
+        if self.matches(&[TokenType::QuestionMark]) {
+            let question_mark = self.previous().clone();
+            let middle = self.equality()?;
+            match self.consume(TokenType::Colon, "Expect ':' in ternary expression.") {
+                Ok(colon) => {
+                    let right = self.equality()?;
+                    return Ok(Box::new(Expr::Ternary(expr, question_mark, middle, colon, right))) 
+                },
+                Err(message) => return Err(message)
+            }
+        }
+        self.equality()
     }
 
     fn equality(&mut self) -> ParseResult {

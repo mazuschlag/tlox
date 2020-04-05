@@ -60,6 +60,8 @@ impl<'a> Scanner<'a> {
             '-' => self.add_single_token(TokenType::Minus, c),
             '+' => self.add_single_token(TokenType::Plus, c),
             ';' => self.add_single_token(TokenType::SemiColon, c),
+            '?' => self.add_single_token(TokenType::QuestionMark, c),
+            ':' => self.add_single_token(TokenType::Colon, c),
             '*' => self.add_multi_token(c),
             '!' => self.add_multi_token(c),
             '=' => self.add_multi_token(c),

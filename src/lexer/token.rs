@@ -84,7 +84,7 @@ impl fmt::Display for Token {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Str(String),
-    Number(f32),
+    Number(f64),
     Bool(bool),
     Comment,
     MultiComment,

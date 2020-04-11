@@ -13,7 +13,7 @@ impl Interpreter {
             .and_then(|result| Ok(match result {
                 Literal::Number(n) => format!("{}", n),
                 Literal::Bool(b) => format!("{}", b),
-                Literal::Str(s) => format!("{}", s),
+                Literal::Str(s) => format!("\"{}\"", s),
                 _ => unimplemented!()
             }));
         match result {
@@ -37,19 +37,9 @@ impl Interpreter {
         let r = self.visit(right)?;
 
         match operator.typ {
-            TokenType::Minus | TokenType::Slash | TokenType::Star => Ok(Literal::Number(self.calculate_number(&l, operator, &r)?)),
-            TokenType::Plus => {
-                if let Literal::Number(_) = l {
-                    return Ok(Literal::Number(self.calculate_number(&l, operator, &r)?))
-                }
-                if let Literal::Str(l) = l {
-                    if let Literal::Str(r) = r {
-                        return Ok(Literal::Str(format!("{}{}", l, r)))
-                    }
-                }
-                Err(RuntimeError::new(operator.clone(), "Operands must be two numbers or two strings."))
-            },
-            TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => Ok(Literal::Bool(self.calculate_bool(&l, operator, &r)?)),
+            TokenType::Minus | TokenType::Slash | TokenType::Star => self.calculate_number(&l, operator, &r),
+            TokenType::Plus => self.calculate_addition(&l, &r),
+            TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => self.calculate_bool(&l, operator, &r),
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(l, r))),
             TokenType::EqualEqual => Ok(Literal::Bool(self.is_equal(l, r))),
             _ => unimplemented!()
@@ -81,14 +71,30 @@ impl Interpreter {
         self.visit(&group)
     }
 
-    fn calculate_number(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<f64> {
+    fn calculate_addition(&self, left: &Literal, right: &Literal) -> RuntimeResult<Literal> {
+        match left {
+            Literal::Number(l) => match right {
+                Literal::Number(r) => return Ok(Literal::Number(r + l)),
+                Literal::Str(r) => return Ok(Literal::Str(format!("{}{}", l, r))),
+                _ => unreachable!()
+            },
+            Literal::Str(l) => match right {
+                Literal::Number(r) => return Ok(Literal::Str(format!("{}{}", l, r))),
+                Literal::Str(r) => return Ok(Literal::Str(format!("{}{}", l, r))),
+                _ => unreachable!()
+            },
+            _ => unreachable!()
+        }
+    }
+
+    fn calculate_number(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<Literal> {
         if let Literal::Number(l) = left {
             if let Literal::Number(r) = right {
                 match operator.typ {
-                    TokenType::Minus => return Ok(l - r),
-                    TokenType::Slash => return Ok(l / r),
-                    TokenType::Star => return Ok(l * r),
-                    TokenType::Plus => return Ok(l + r),
+                    TokenType::Minus => return Ok(Literal::Number(l - r)),
+                    TokenType::Slash => return Ok(Literal::Number(l / r)),
+                    TokenType::Star => return Ok(Literal::Number(l * r)),
+                    TokenType::Plus => return Ok(Literal::Number(l + r)),
                     _ => unreachable!()
                 }   
             }
@@ -96,14 +102,14 @@ impl Interpreter {
         Err(RuntimeError::new(operator.clone(), "Operand must be a number"))
     }
 
-    fn calculate_bool(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<bool> {
+    fn calculate_bool(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<Literal> {
         if let Literal::Number(l) = left {
             if let Literal::Number(r) = right {
                 match operator.typ {
-                    TokenType::Greater => return Ok(l > r),
-                    TokenType::GreaterEqual => return Ok(l >= r),
-                    TokenType::Less => return Ok(l < r),
-                    TokenType::LessEqual => return Ok(l <= r),
+                    TokenType::Greater => return Ok(Literal::Bool(l > r)),
+                    TokenType::GreaterEqual => return Ok(Literal::Bool(l >= r)),
+                    TokenType::Less => return Ok(Literal::Bool(l < r)),
+                    TokenType::LessEqual => return Ok(Literal::Bool(l <= r)),
                     _ => unreachable!()
                 }   
             }

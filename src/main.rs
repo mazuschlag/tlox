@@ -8,7 +8,7 @@ use std::fs::File;
 use std::io::{self, Read, BufRead, Write};
 use lexer::scanner::Scanner;
 use parser::parser::Parser;
-use parser::expression::AstPrinter;
+use interpreter::interpreter::Interpreter;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -45,7 +45,7 @@ fn run(source: &str) {
     let mut parser = Parser::new(tokens);
     let parse_result = parser.parse();
     match &parse_result {
-        Ok(expression) => AstPrinter.print(expression),
+        Ok(expression) => Interpreter.print(expression),
         Err(message) => println!("{}", message)
     };
 }

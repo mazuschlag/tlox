@@ -1,4 +1,5 @@
 use crate::parser::expression::Expr;
+use crate::parser::statement::{Stmt, Program};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, Literal, TokenType};
 
@@ -7,22 +8,35 @@ pub struct Interpreter;
 type RuntimeResult<T> = Result<T, RuntimeError>;
 
 impl Interpreter {
-    pub fn print(&self, expr: &Expr) {
-        let result = self.visit(expr)
-            .map_err(|err| runtime_report(err))
-            .and_then(|result| Ok(match result {
-                Literal::Number(n) => format!("{}", n),
-                Literal::Bool(b) => format!("{}", b),
-                Literal::Str(s) => format!("\"{}\"", s),
-                _ => unimplemented!()
-            }));
-        match result {
-            Ok(r) => println!("{}", r),
-            Err(e) => println!("{}", e)
-        };
+    pub fn interpret(&self, program: &Program) {
+        for stmt in program {
+            let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
+            if let Some(e) = result {
+                println!("{}", e);
+            }
+        }
     }
 
-    fn visit(&self, expr: &Expr) -> RuntimeResult<Literal> {
+    fn visit_stmt(&self, stmt: &Stmt) -> RuntimeResult<()> {
+        match stmt {
+            Stmt::Expression(expr) => self.visit_stmt_expression(expr),
+            Stmt::Print(expr) => self.visit_stmt_print(expr)
+        }?;
+        Ok(())
+    }
+
+    fn visit_stmt_expression(&self, expr: &Expr) -> RuntimeResult<()> {
+        self.visit_expr(expr)?;
+        Ok(())
+    }
+
+    fn visit_stmt_print(&self, expr: &Expr) -> RuntimeResult<()> {
+        let value = self.visit_expr(expr)?;
+        println!("{}", value);
+        Ok(())
+    }
+
+    fn visit_expr(&self, expr: &Expr) -> RuntimeResult<Literal> {
         match expr {
             Expr::Grouping(group) => self.visit_grouping_expr(group),
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
@@ -34,8 +48,8 @@ impl Interpreter {
     }
 
     fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {
-        let l = self.visit(left)?;
-        let r = self.visit(right)?;
+        let l = self.visit_expr(left)?;
+        let r = self.visit_expr(right)?;
 
         match operator.typ {
             TokenType::Minus | TokenType::Slash | TokenType::Star => self.calculate_number(&l, operator, &r),
@@ -49,9 +63,9 @@ impl Interpreter {
     }
 
     fn visit_ternary_expr(&self, left: &Expr, middle: &Expr, right: &Expr) -> RuntimeResult<Literal> {
-        match self.is_truthy(self.visit(left)?) {
-            true => return self.visit(middle),
-            false => return self.visit(right)
+        match self.is_truthy(self.visit_expr(left)?) {
+            true => return self.visit_expr(middle),
+            false => return self.visit_expr(right)
         }
     }
 
@@ -60,7 +74,7 @@ impl Interpreter {
     }
 
     fn visit_unary_expr(&self, operator: &Token, expr: &Expr) -> RuntimeResult<Literal> {
-        let right = self.visit(expr)?;
+        let right = self.visit_expr(expr)?;
         match operator.typ {
             TokenType::Minus => {
                 if let Literal::Number(num) = right {
@@ -77,7 +91,7 @@ impl Interpreter {
     }
 
     fn visit_grouping_expr(&self, group: &Expr) -> RuntimeResult<Literal> {
-        self.visit(&group)
+        self.visit_expr(&group)
     }
 
     fn calculate_addition(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<Literal> {

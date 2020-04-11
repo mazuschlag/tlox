@@ -1,13 +1,14 @@
 use crate::lexer::token::{Token, TokenType, Literal};
 use crate::error::report::error;
-use super::expression::Expr;
+use super::expression::{Expr, Expression};
+use super::statement::{Program, Stmt};
 
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     current: usize
 }
 
-type ParseResult = Result<Box<Expr>, String>;
+type ParseResult<T> = Result<T, String>;
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &Vec<Token>) -> Parser {
@@ -17,19 +18,38 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult {
-        let result = self.expression()?;
-        if !self.is_at_end() {
-            return Err(self.parse_error("Unexpected token."))
+    pub fn parse(&mut self) -> ParseResult<Program> {
+        let mut statements = Vec::new();
+        while !self.is_at_end() {
+            statements.push(self.statement()?);
         }
-        return Ok(result)
+        Ok(statements)
     }
 
-    fn expression(&mut self) -> ParseResult {
+    fn statement(&mut self) -> ParseResult<Stmt> {
+        if self.matches(&[TokenType::Print]) {
+            return self.print_statement()
+        }
+        self.expression_statement()
+    }
+
+    fn print_statement(&mut self) -> ParseResult<Stmt> {
+        let value = self.expression()?;
+        self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
+        Ok(Stmt::Print(value))
+    }
+
+    fn expression_statement(&mut self) -> ParseResult<Stmt> {
+        let value = self.expression()?;
+        self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
+        Ok(Stmt::Expression(value))
+    }
+
+    fn expression(&mut self) -> ParseResult<Expression> {
         self.comma()
     }
 
-    fn comma(&mut self) -> ParseResult {
+    fn comma(&mut self) -> ParseResult<Expression> {
         let mut expr = self.ternary()?;
         while self.matches(&[TokenType::Comma]) {
             let operator = self.previous().clone();
@@ -39,7 +59,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn ternary(&mut self) -> ParseResult {
+    fn ternary(&mut self) -> ParseResult<Expression> {
         let expr = self.equality()?;
         if self.matches(&[TokenType::QuestionMark]) {
             let question_mark = self.previous().clone();
@@ -55,7 +75,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn equality(&mut self) -> ParseResult {
+    fn equality(&mut self) -> ParseResult<Expression> {
         let mut expr = self.comparison()?;
         while self.matches(&[TokenType::EqualEqual, TokenType::BangEqual]) {
             let operator = self.previous().clone();
@@ -65,7 +85,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> ParseResult {
+    fn comparison(&mut self) -> ParseResult<Expression> {
         let mut expr = self.addition()?;
         while self.matches(&[TokenType::LessEqual, TokenType::Less, TokenType::GreaterEqual, TokenType::Greater]) {
             let operator = self.previous().clone();
@@ -75,7 +95,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn addition(&mut self) -> ParseResult {
+    fn addition(&mut self) -> ParseResult<Expression> {
         let mut expr = self.multiplication()?;
         while self.matches(&[TokenType::Minus, TokenType::Plus]) {
             let operator = self.previous().clone();
@@ -85,7 +105,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn multiplication(&mut self) -> ParseResult {
+    fn multiplication(&mut self) -> ParseResult<Expression> {
         let mut expr = self.unary()?;
         while self.matches(&[TokenType::Slash, TokenType::Star]) {
             let operator = self.previous().clone();
@@ -95,7 +115,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn unary(&mut self) -> ParseResult {
+    fn unary(&mut self) -> ParseResult<Expression> {
         if self.matches(&[TokenType::Minus, TokenType::Bang]) {
             let operator = self.previous().clone();
             let right = self.unary()?;
@@ -104,7 +124,7 @@ impl<'a> Parser<'a> {
         self.primary()
     }
 
-    fn primary(&mut self) -> ParseResult {
+    fn primary(&mut self) -> ParseResult<Expression> {
         if self.matches(&[TokenType::False]) {
             return Ok(Box::new(Expr::Literal(Literal::Bool(false))))
         }
@@ -131,7 +151,7 @@ impl<'a> Parser<'a> {
         Err(self.parse_error("Expect expression."))
     }
 
-    fn consume(&mut self, token_type: TokenType, message: &str) -> Result<Token, String> {
+    fn consume(&mut self, token_type: TokenType, message: &str) -> ParseResult<Token> {
         if self.check(&token_type) {
             return Ok(self.advance().clone());
         }

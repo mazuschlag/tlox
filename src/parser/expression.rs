@@ -2,14 +2,16 @@ use crate::lexer::token::{Token, Literal};
 
 #[derive(Debug)]
 pub enum Expr {
-    Binary(Box<Expr>, Token, Box<Expr>),
-    Ternary(Box<Expr>, Token, Box<Expr>, Token, Box<Expr>),
-    Grouping(Box<Expr>),
+    Binary(Expression, Token, Expression),
+    Ternary(Expression, Token, Expression, Token, Expression),
+    Grouping(Expression),
     Literal(Literal),
     #[allow(dead_code)]
-    Logical(Box<Expr>, Token, Box<Expr>),
-    Unary(Token, Box<Expr>)
+    Logical(Expression, Token, Expression),
+    Unary(Token, Expression)
 }
+
+pub type Expression = Box<Expr>;
 
 /* 
     Wrapper for printing AST in Lisp-like format

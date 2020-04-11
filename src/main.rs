@@ -45,7 +45,7 @@ fn run(source: &str) {
     let mut parser = Parser::new(tokens);
     let parse_result = parser.parse();
     match &parse_result {
-        Ok(expression) => Interpreter.print(expression),
+        Ok(program) => Interpreter.interpret(program),
         Err(message) => println!("{}", message)
     };
 }

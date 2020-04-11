@@ -101,9 +101,13 @@ impl Interpreter {
             if let Literal::Number(r) = right {
                 match operator.typ {
                     TokenType::Minus => return Ok(Literal::Number(l - r)),
-                    TokenType::Slash => return Ok(Literal::Number(l / r)),
                     TokenType::Star => return Ok(Literal::Number(l * r)),
-                    TokenType::Plus => return Ok(Literal::Number(l + r)),
+                    TokenType::Slash => {
+                        if *r == 0.0 {
+                            return Err(RuntimeError::new(operator.clone(), "Cannot divide by zero."))
+                        }
+                        return Ok(Literal::Number(l / r))
+                    },
                     _ => unreachable!()
                 }   
             }

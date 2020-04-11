@@ -18,7 +18,11 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> ParseResult {
-        self.expression()
+        let result = self.expression()?;
+        if !self.is_at_end() {
+            return Err(self.parse_error("Unexpected token."))
+        }
+        return Ok(result)
     }
 
     fn expression(&mut self) -> ParseResult {
@@ -43,9 +47,6 @@ impl<'a> Parser<'a> {
             match self.consume(TokenType::Colon, "Expect ':' in ternary expression.") {
                 Ok(colon) => {
                     let right = self.expression()?;
-                    if !self.is_at_end() {
-                        return Err(self.parse_error("Unexpected token."))
-                    }
                     return Ok(Box::new(Expr::Ternary(expr, question_mark, middle, colon, right)))
                 },
                 Err(message) => return Err(message)

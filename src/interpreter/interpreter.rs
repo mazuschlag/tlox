@@ -39,7 +39,7 @@ impl Interpreter {
 
         match operator.typ {
             TokenType::Minus | TokenType::Slash | TokenType::Star => self.calculate_number(&l, operator, &r),
-            TokenType::Plus => self.calculate_addition(&l, &r),
+            TokenType::Plus => self.calculate_addition(&l, operator, &r),
             TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => self.calculate_bool(&l, operator, &r),
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(l, r))),
             TokenType::EqualEqual => Ok(Literal::Bool(self.is_equal(l, r))),
@@ -72,7 +72,7 @@ impl Interpreter {
             TokenType::Bang => {
                 return Ok(Literal::Bool(!self.is_truthy(right)))
             }
-            _ => unreachable!()
+            _ => return Err(RuntimeError::new(operator.clone(), "Uknown unary operator."))
         }
     }
 
@@ -80,19 +80,19 @@ impl Interpreter {
         self.visit(&group)
     }
 
-    fn calculate_addition(&self, left: &Literal, right: &Literal) -> RuntimeResult<Literal> {
+    fn calculate_addition(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<Literal> {
         match left {
             Literal::Number(l) => match right {
                 Literal::Number(r) => return Ok(Literal::Number(r + l)),
                 Literal::Str(r) => return Ok(Literal::Str(format!("{}{}", l, r))),
-                _ => unreachable!()
+                _ => return Err(RuntimeError::new(operator.clone(), "Cannot add operands."))
             },
             Literal::Str(l) => match right {
                 Literal::Number(r) => return Ok(Literal::Str(format!("{}{}", l, r))),
                 Literal::Str(r) => return Ok(Literal::Str(format!("{}{}", l, r))),
-                _ => unreachable!()
+                _ => return Err(RuntimeError::new(operator.clone(), "Cannot add operands."))
             },
-            _ => unreachable!()
+            _ => Err(RuntimeError::new(operator.clone(), "Cannot add operands."))
         }
     }
 
@@ -108,7 +108,7 @@ impl Interpreter {
                         }
                         return Ok(Literal::Number(l / r))
                     },
-                    _ => unreachable!()
+                    _ => return Err(RuntimeError::new(operator.clone(), "Uknown operator for numbers."))
                 }   
             }
         }
@@ -123,7 +123,7 @@ impl Interpreter {
                     TokenType::GreaterEqual => return Ok(Literal::Bool(l >= r)),
                     TokenType::Less => return Ok(Literal::Bool(l < r)),
                     TokenType::LessEqual => return Ok(Literal::Bool(l <= r)),
-                    _ => unreachable!()
+                    _ => return Err(RuntimeError::new(operator.clone(), "Uknown operator for numbers."))
                 }   
             }
         }

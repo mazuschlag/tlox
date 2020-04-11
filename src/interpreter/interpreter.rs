@@ -28,6 +28,7 @@ impl Interpreter {
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
             Expr::Literal(value) => self.visit_literal(value.clone()),
             Expr::Binary(left, operator, right) => self.visit_binary_expr(left, operator, right),
+            Expr::Ternary(left, _, middle, _, right) => self.visit_ternary_expr(left, middle, right),
             _ => unimplemented!()
         }
     }
@@ -43,6 +44,13 @@ impl Interpreter {
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(l, r))),
             TokenType::EqualEqual => Ok(Literal::Bool(self.is_equal(l, r))),
             _ => unimplemented!()
+        }
+    }
+
+    fn visit_ternary_expr(&self, left: &Expr, middle: &Expr, right: &Expr) -> RuntimeResult<Literal> {
+        match self.is_truthy(self.visit(left)?) {
+            true => return self.visit(middle),
+            false => return self.visit(right)
         }
     }
 

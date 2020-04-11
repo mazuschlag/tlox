@@ -43,6 +43,7 @@ impl Interpreter {
             TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => self.calculate_bool(&l, operator, &r),
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(l, r))),
             TokenType::EqualEqual => Ok(Literal::Bool(self.is_equal(l, r))),
+            TokenType::Comma => Ok(r),
             _ => unimplemented!()
         }
     }

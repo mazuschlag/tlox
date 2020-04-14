@@ -59,16 +59,16 @@ impl fmt::Display for TokenType {
 #[derive(Debug, Clone)]
 pub struct Token {
     pub typ: TokenType,
-    pub lexme: String,
+    pub lexeme: String,
     pub literal: Literal,
     pub line: u32
 }
 
 impl Token {
-    pub fn new(typ: TokenType, lexme: String, literal: Literal, line: u32) -> Token {
+    pub fn new(typ: TokenType, lexeme: String, literal: Literal, line: u32) -> Token {
         Token {
             typ,
-            lexme,
+            lexeme,
             literal,
             line
         }
@@ -77,7 +77,7 @@ impl Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "{} {} {}", self.typ, self.lexme, self.literal)
+       write!(f, "{} {} {}", self.typ, self.lexeme, self.literal)
     }
 }
 

@@ -3,6 +3,7 @@ use crate::error::report::error;
 use super::expression::{Expr, Expression};
 use super::statement::{Program, Stmt};
 
+#[derive(Debug)]
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     current: usize
@@ -21,9 +22,30 @@ impl<'a> Parser<'a> {
     pub fn parse(&mut self) -> ParseResult<Program> {
         let mut statements = Vec::new();
         while !self.is_at_end() {
-            statements.push(self.statement()?);
+            match self.declaration() {
+                Ok(statement) => statements.push(statement),
+                Err(_) => self.synchronize()
+            }
         }
         Ok(statements)
+    }
+
+    fn declaration(&mut self) -> ParseResult<Stmt> {
+        if self.matches(&[TokenType::Var]) {
+            return self.var_declaration()
+        }
+        let result = self.statement();
+        result
+    }
+
+    fn var_declaration(&mut self) -> ParseResult<Stmt> {
+        let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
+        let initializer = match self.matches(&[TokenType::Equal]) {
+            true => self.expression()?,
+            false => Box::new(Expr::Literal(Literal::Nothing))
+        };
+        self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
+        Ok(Stmt::Var(name, initializer))
     }
 
     fn statement(&mut self) -> ParseResult<Stmt> {
@@ -148,6 +170,11 @@ impl<'a> Parser<'a> {
                 Err(message) => return Err(message)
             }
         }
+
+        if self.matches(&[TokenType::Identifier]) {
+            return Ok(Box::new(Expr::Variable(self.previous().clone())))
+        }
+
         Err(self.parse_error("Expect expression."))
     }
 
@@ -158,7 +185,7 @@ impl<'a> Parser<'a> {
         Err(self.parse_error(message))
     }
 
-    fn _synchronize(&mut self) {
+    fn synchronize(&mut self) {
         self.advance();
         while !self.is_at_end() {
             if self.previous().typ == TokenType::SemiColon {

@@ -15,7 +15,7 @@ fn main() {
     match args.len() {
         2 => run_file(&args[1]),
         1 => run_prompt(),
-        _ => println!("Usage: jlox [script]")
+        _ => println!("Usage: tlox [script]")
     }
 }
 
@@ -45,7 +45,10 @@ fn run(source: &str) {
     let mut parser = Parser::new(tokens);
     let parse_result = parser.parse();
     match &parse_result {
-        Ok(program) => Interpreter.interpret(program),
+        Ok(program) => {
+            let mut interpreter = Interpreter::new();
+            interpreter.interpret(program);
+        },
         Err(message) => println!("{}", message)
     };
 }

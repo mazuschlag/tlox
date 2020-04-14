@@ -2,13 +2,22 @@ use crate::parser::expression::Expr;
 use crate::parser::statement::{Stmt, Program};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, Literal, TokenType};
+use crate::interpreter::environment::Environment;
 
-pub struct Interpreter;
+pub struct Interpreter {
+    environment: Environment
+}
 
-type RuntimeResult<T> = Result<T, RuntimeError>;
+pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 impl Interpreter {
-    pub fn interpret(&self, program: &Program) {
+    pub fn new() -> Interpreter {
+        Interpreter {
+            environment: Environment::new()
+        }
+    }
+
+    pub fn interpret(&mut self, program: &Program) {
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -17,23 +26,33 @@ impl Interpreter {
         }
     }
 
-    fn visit_stmt(&self, stmt: &Stmt) -> RuntimeResult<()> {
+    fn visit_stmt(&mut self, stmt: &Stmt) -> RuntimeResult<()> {
         match stmt {
-            Stmt::Expression(expr) => self.visit_stmt_expression(expr),
-            Stmt::Print(expr) => self.visit_stmt_print(expr)
+            Stmt::Expression(expr) => self.visit_expression_stmt(expr),
+            Stmt::Print(expr) => self.visit_print_stmt(expr),
+            Stmt::Var(name, expr) => self.visit_var_stmt(name, expr)
         }?;
         Ok(())
     }
 
-    fn visit_stmt_expression(&self, expr: &Expr) -> RuntimeResult<()> {
+    fn visit_expression_stmt(&self, expr: &Expr) -> RuntimeResult<()> {
         self.visit_expr(expr)?;
         Ok(())
     }
 
-    fn visit_stmt_print(&self, expr: &Expr) -> RuntimeResult<()> {
+    fn visit_print_stmt(&self, expr: &Expr) -> RuntimeResult<()> {
         let value = self.visit_expr(expr)?;
         println!("{}", value);
         Ok(())
+    }
+
+    fn visit_var_stmt(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<()> {
+        let value = match *initializer {
+            Expr::Literal(Literal::Nothing) => Literal::Nothing,
+            _ => self.visit_expr(initializer)?
+        };
+        self.environment.define(name.lexeme.clone(), value);
+        return Ok(())
     }
 
     fn visit_expr(&self, expr: &Expr) -> RuntimeResult<Literal> {
@@ -43,8 +62,13 @@ impl Interpreter {
             Expr::Literal(value) => self.visit_literal(value.clone()),
             Expr::Binary(left, operator, right) => self.visit_binary_expr(left, operator, right),
             Expr::Ternary(left, _, middle, _, right) => self.visit_ternary_expr(left, middle, right),
+            Expr::Variable(var) => self.visit_var_expr(var),
             _ => unimplemented!()
         }
+    }
+
+    fn visit_var_expr(&self, name: &Token) -> RuntimeResult<Literal> {
+        self.environment.get(name)
     }
 
     fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {

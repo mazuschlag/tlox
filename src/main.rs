@@ -22,16 +22,18 @@ fn main() {
 fn run_file(file_name: &str) {
     let mut source_file = File::open(file_name).unwrap();
     let mut input = String::new();
+    let mut interpreter = Interpreter::new();
     source_file.read_to_string(&mut input).unwrap();
-    run(&input);
+    run(&mut interpreter, &input);
 }
 
 fn run_prompt() {
     new_line();
+    let mut interpreter = Interpreter::new();
     for line in io::stdin().lock().lines() {
         match line {
             Ok(input) => { 
-                run(&input);
+                run(&mut interpreter, &input);
                 new_line();
             },
             Err(error) => println!("Error reading line: {}", error)
@@ -39,7 +41,7 @@ fn run_prompt() {
     }
 }
 
-fn run(source: &str) {
+fn run(interpreter: &mut Interpreter, source: &str) {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens);
@@ -49,7 +51,6 @@ fn run(source: &str) {
         return
     }
     let program = parser.statements;
-    let mut interpreter = Interpreter::new();
     interpreter.interpret(&program);
 }
 

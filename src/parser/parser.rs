@@ -6,7 +6,9 @@ use super::statement::{Program, Stmt};
 #[derive(Debug)]
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
-    current: usize
+    current: usize,
+    pub errors: Vec<String>,
+    pub statements: Program
 }
 
 type ParseResult<T> = Result<T, String>;
@@ -15,19 +17,19 @@ impl<'a> Parser<'a> {
     pub fn new(tokens: &Vec<Token>) -> Parser {
         Parser {
             tokens: tokens,
-            current: 0
+            current: 0,
+            errors: Vec::new(),
+            statements: Vec::new()
         }
     }
 
-    pub fn parse(&mut self) -> ParseResult<Program> {
-        let mut statements = Vec::new();
+    pub fn parse(&mut self) {
         while !self.is_at_end() {
             match self.declaration() {
-                Ok(statement) => statements.push(statement),
-                Err(_) => self.synchronize()
+                Ok(statement) => self.statements.push(statement),
+                Err(err) => self.synchronize(err)
             }
         }
-        Ok(statements)
     }
 
     fn declaration(&mut self) -> ParseResult<Stmt> {
@@ -68,7 +70,19 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> ParseResult<Expression> {
-        self.comma()
+        self.assignment()
+    }
+
+    fn assignment(&mut self) -> ParseResult<Expression> {
+        let expr = self.comma()?;
+        if self.matches(&[TokenType::Equal]) {
+            let value = self.assignment()?;
+            if let Expr::Variable(name) = *expr {
+                return Ok(Box::new(Expr::Assign(name.clone(), value)))
+            }
+            return Err(self.parse_error("Invalid assignment target."))
+        }
+        Ok(expr)
     }
 
     fn comma(&mut self) -> ParseResult<Expression> {
@@ -185,7 +199,8 @@ impl<'a> Parser<'a> {
         Err(self.parse_error(message))
     }
 
-    fn synchronize(&mut self) {
+    fn synchronize(&mut self, err: String) {
+        self.errors.push(err);
         self.advance();
         while !self.is_at_end() {
             if self.previous().typ == TokenType::SemiColon {

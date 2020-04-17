@@ -43,14 +43,14 @@ fn run(source: &str) {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
     let mut parser = Parser::new(tokens);
-    let parse_result = parser.parse();
-    match &parse_result {
-        Ok(program) => {
-            let mut interpreter = Interpreter::new();
-            interpreter.interpret(program);
-        },
-        Err(message) => println!("{}", message)
-    };
+    parser.parse();
+    if parser.errors.len() > 0 {
+        parser.errors.iter().for_each(|err| { println!("{}", err) });
+        return
+    }
+    let program = parser.statements;
+    let mut interpreter = Interpreter::new();
+    interpreter.interpret(&program);
 }
 
 fn new_line() {

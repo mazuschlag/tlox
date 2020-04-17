@@ -9,7 +9,8 @@ pub enum Expr {
     #[allow(dead_code)]
     Logical(Expression, Token, Expression),
     Unary(Token, Expression),
-    Variable(Token)
+    Variable(Token),
+    Assign(Token, Expression)
 }
 
 pub type Expression = Box<Expr>;
@@ -50,7 +51,8 @@ impl AstPrinter {
             Expr::Literal(literal) => self.visit_literal_expr(literal),
             Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
             Expr::Unary(operator, right) => self.visit_unary_expr(&operator, &right),
-            Expr::Variable(name) => name.lexeme.clone()
+            Expr::Variable(name) => name.lexeme.clone(),
+            _ => unimplemented!()
         }
     }
 
@@ -150,7 +152,8 @@ impl RpnPrinter {
             Expr::Literal(literal) => self.visit_literal_expr(literal),
             Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
             Expr::Unary(operator, right) => self.visit_unary_expr(&operator, &right),
-            Expr::Variable(name) => name.lexeme.clone()
+            Expr::Variable(name) => name.lexeme.clone(),
+            _ => unimplemented!()
         }
     }
 

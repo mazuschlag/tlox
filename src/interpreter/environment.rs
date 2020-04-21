@@ -25,4 +25,12 @@ impl Environment {
             None => Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
         }
     }
+
+    pub fn assign(&mut self, name: &Token, value: Literal) -> RuntimeResult<()> {
+        if self.values.contains_key(&name.lexeme) {
+            *self.values.get_mut(&name.lexeme).unwrap() = value;
+            return Ok(())
+        }
+        Err(RuntimeError::new(name.clone(), &format!("Undeined variable '{}'.", name.lexeme)))
+    }
 }

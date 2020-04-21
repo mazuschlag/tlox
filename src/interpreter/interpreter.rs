@@ -35,8 +35,11 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_expression_stmt(&self, expr: &Expr) -> RuntimeResult<()> {
-        self.visit_expr(expr)?;
+    fn visit_expression_stmt(&mut self, expr: &Expr) -> RuntimeResult<()> {
+        match expr {
+            Expr::Assign(name, right) => self.visit_assign_expr(name, right)?,
+            _ => self.visit_expr(expr)?
+        };
         Ok(())
     }
 
@@ -53,6 +56,12 @@ impl Interpreter {
         };
         self.environment.define(name.lexeme.clone(), value);
         return Ok(())
+    }
+
+    fn visit_assign_expr(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<Literal> {
+        let value = self.visit_expr(initializer)?;
+        self.environment.assign(name, value.clone())?;
+        Ok(value)
     }
 
     fn visit_expr(&self, expr: &Expr) -> RuntimeResult<Literal> {

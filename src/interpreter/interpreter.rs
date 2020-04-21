@@ -36,14 +36,11 @@ impl Interpreter {
     }
 
     fn visit_expression_stmt(&mut self, expr: &Expr) -> RuntimeResult<()> {
-        match expr {
-            Expr::Assign(name, right) => self.visit_assign_expr(name, right)?,
-            _ => self.visit_expr(expr)?
-        };
+        self.visit_expr(expr)?;
         Ok(())
     }
 
-    fn visit_print_stmt(&self, expr: &Expr) -> RuntimeResult<()> {
+    fn visit_print_stmt(&mut self, expr: &Expr) -> RuntimeResult<()> {
         let value = self.visit_expr(expr)?;
         println!("{}", value);
         Ok(())
@@ -58,13 +55,7 @@ impl Interpreter {
         return Ok(())
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<Literal> {
-        let value = self.visit_expr(initializer)?;
-        self.environment.assign(name, value.clone())?;
-        Ok(value)
-    }
-
-    fn visit_expr(&self, expr: &Expr) -> RuntimeResult<Literal> {
+    fn visit_expr(&mut self, expr: &Expr) -> RuntimeResult<Literal> {
         match expr {
             Expr::Grouping(group) => self.visit_grouping_expr(group),
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
@@ -72,15 +63,22 @@ impl Interpreter {
             Expr::Binary(left, operator, right) => self.visit_binary_expr(left, operator, right),
             Expr::Ternary(left, _, middle, _, right) => self.visit_ternary_expr(left, middle, right),
             Expr::Variable(var) => self.visit_var_expr(var),
+            Expr::Assign(name, value) => self.visit_assign_expr(name, value),
             _ => unimplemented!()
         }
+    }
+
+    fn visit_assign_expr(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<Literal> {
+        let value = self.visit_expr(initializer)?;
+        self.environment.assign(name, value.clone())?;
+        Ok(value)
     }
 
     fn visit_var_expr(&self, name: &Token) -> RuntimeResult<Literal> {
         self.environment.get(name)
     }
 
-    fn visit_binary_expr(&self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {
+    fn visit_binary_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {
         let l = self.visit_expr(left)?;
         let r = self.visit_expr(right)?;
 
@@ -95,8 +93,9 @@ impl Interpreter {
         }
     }
 
-    fn visit_ternary_expr(&self, left: &Expr, middle: &Expr, right: &Expr) -> RuntimeResult<Literal> {
-        match self.is_truthy(self.visit_expr(left)?) {
+    fn visit_ternary_expr(&mut self, left: &Expr, middle: &Expr, right: &Expr) -> RuntimeResult<Literal> {
+        let l = self.visit_expr(left)?;
+        match self.is_truthy(l) {
             true => return self.visit_expr(middle),
             false => return self.visit_expr(right)
         }
@@ -106,7 +105,7 @@ impl Interpreter {
         Ok(value)
     }
 
-    fn visit_unary_expr(&self, operator: &Token, expr: &Expr) -> RuntimeResult<Literal> {
+    fn visit_unary_expr(&mut self, operator: &Token, expr: &Expr) -> RuntimeResult<Literal> {
         let right = self.visit_expr(expr)?;
         match operator.typ {
             TokenType::Minus => {
@@ -123,7 +122,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&self, group: &Expr) -> RuntimeResult<Literal> {
+    fn visit_grouping_expr(&mut self, group: &Expr) -> RuntimeResult<Literal> {
         self.visit_expr(&group)
     }
 

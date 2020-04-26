@@ -1,5 +1,5 @@
 use crate::parser::expression::Expr;
-use crate::parser::statement::{Stmt, Program};
+use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, Literal, TokenType};
 use crate::interpreter::environment::Environment;
@@ -13,11 +13,11 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            environment: Environment::new()
+            environment: Environment::new(None)
         }
     }
 
-    pub fn interpret(&mut self, program: &Program) {
+    pub fn interpret(&mut self, program: &Declarations) {
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -30,8 +30,22 @@ impl Interpreter {
         match stmt {
             Stmt::Expression(expr) => self.visit_expression_stmt(expr),
             Stmt::Print(expr) => self.visit_print_stmt(expr),
-            Stmt::Var(name, expr) => self.visit_var_stmt(name, expr)
+            Stmt::Var(name, expr) => self.visit_var_stmt(name, expr),
+            Stmt::Block(statements) => self.visit_block_stmt(statements)
         }?;
+        Ok(())
+    }
+
+    fn visit_block_stmt(&mut self, statements: &Declarations) -> RuntimeResult<()> {
+        let previous = self.environment.clone();
+        self.environment = Environment::new(Some(self.environment.clone()));
+        for statement in statements {
+            if let Some(err) = self.visit_stmt(statement).err() {
+                self.environment = previous;
+                return Err(err)
+            }
+        }
+        self.environment = previous;
         Ok(())
     }
 

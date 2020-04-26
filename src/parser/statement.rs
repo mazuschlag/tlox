@@ -5,7 +5,8 @@ use crate::lexer::token::Token;
 pub enum Stmt {
     Expression(Expression),
     Print(Expression),
-    Var(Token, Expression)
+    Var(Token, Expression),
+    Block(Declarations)
 }
 
-pub type Program = Vec<Stmt>;
+pub type Declarations = Vec<Stmt>;

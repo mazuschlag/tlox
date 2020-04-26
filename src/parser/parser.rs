@@ -1,14 +1,14 @@
 use crate::lexer::token::{Token, TokenType, Literal};
 use crate::error::report::error;
 use super::expression::{Expr, Expression};
-use super::statement::{Program, Stmt};
+use super::statement::{Declarations, Stmt};
 
 #[derive(Debug)]
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     current: usize,
     pub errors: Vec<String>,
-    pub statements: Program
+    pub statements: Declarations
 }
 
 type ParseResult<T> = Result<T, String>;
@@ -54,7 +54,19 @@ impl<'a> Parser<'a> {
         if self.matches(&[TokenType::Print]) {
             return self.print_statement()
         }
+        if self.matches(&[TokenType::LeftBrace]) {
+            return Ok(Stmt::Block(self.block()?))
+        }
         self.expression_statement()
+    }
+
+    fn block(&mut self) -> ParseResult<Declarations> {
+        let mut statements = Vec::new();
+        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+            statements.push(self.declaration()?);
+        }
+        self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
+        Ok(statements)
     }
 
     fn print_statement(&mut self) -> ParseResult<Stmt> {
@@ -230,7 +242,7 @@ impl<'a> Parser<'a> {
         false
     }
 
-    fn check(&mut self, token_type: &TokenType) -> bool {
+    fn check(&self, token_type: &TokenType) -> bool {
         if self.is_at_end() {
             return false
         }

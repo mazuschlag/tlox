@@ -6,7 +6,8 @@ pub enum Stmt {
     Expression(Expression),
     Print(Expression),
     Var(Token, Expression),
-    Block(Declarations)
+    Block(Declarations),
+    If(Expression, Box<Stmt>, Box<Option<Stmt>>)
 }
 
 pub type Declarations = Vec<Stmt>;

@@ -38,8 +38,7 @@ impl<'a> Parser<'a> {
         if self.matches(&[TokenType::Var]) {
             return self.var_declaration()
         }
-        let result = self.statement();
-        result
+        self.statement()
     }
 
     fn var_declaration(&mut self) -> ParseResult<Stmt> {
@@ -59,6 +58,9 @@ impl<'a> Parser<'a> {
         if self.matches(&[TokenType::LeftBrace]) {
             return Ok(Stmt::Block(self.block()?))
         }
+        if self.matches(&[TokenType::If]) {
+            return self.if_statement()
+        }
         self.expression_statement()
     }
 
@@ -77,6 +79,19 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Print(value))
     }
 
+    fn if_statement(&mut self) -> ParseResult<Stmt> {
+        self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
+        let condition = self.expression()?;
+        self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
+        let then_branch = self.statement()?;
+        let else_branch = if self.matches(&[TokenType::Else]) {
+            Some(self.statement()?)
+        } else {
+            None
+        };
+        Ok(Stmt::If(condition, Box::new(then_branch), Box::new(else_branch)))
+    }
+
     fn expression_statement(&mut self) -> ParseResult<Stmt> {
         let value = self.expression()?;
         if self.is_repl {
@@ -87,11 +102,21 @@ impl<'a> Parser<'a> {
     }
 
     fn expression(&mut self) -> ParseResult<Expression> {
-        self.assignment()
+        self.comma()
+    }
+
+    fn comma(&mut self) -> ParseResult<Expression> {
+        let mut expr = self.assignment()?;
+        while self.matches(&[TokenType::Comma]) {
+            let operator = self.previous();
+            let right = self.equality()?;
+            expr = Box::new(Expr::Binary(expr, operator, right));
+        }
+        Ok(expr)
     }
 
     fn assignment(&mut self) -> ParseResult<Expression> {
-        let expr = self.comma()?;
+        let expr = self.or()?;
         if self.matches(&[TokenType::Equal]) {
             let value = self.assignment()?;
             if let Expr::Variable(name) = *expr {
@@ -102,12 +127,22 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn comma(&mut self) -> ParseResult<Expression> {
+    fn or(&mut self) -> ParseResult<Expression> {
+        let mut expr = self.and()?;
+        while self.matches(&[TokenType::Or]) {
+            let operator = self.previous();
+            let right = self.and()?;
+            expr = Box::new(Expr::Logical(expr, operator, right));
+        }
+        Ok(expr)
+    }
+
+    fn and(&mut self) -> ParseResult<Expression> {
         let mut expr = self.ternary()?;
-        while self.matches(&[TokenType::Comma]) {
-            let operator = self.previous().clone();
-            let right = self.equality()?;
-            expr = Box::new(Expr::Binary(expr, operator, right));
+        while self.matches(&[TokenType::And]) {
+            let operator = self.previous();
+            let right = self.ternary()?;
+            expr = Box::new(Expr::Logical(expr, operator, right));
         }
         Ok(expr)
     }
@@ -115,15 +150,10 @@ impl<'a> Parser<'a> {
     fn ternary(&mut self) -> ParseResult<Expression> {
         let expr = self.equality()?;
         if self.matches(&[TokenType::QuestionMark]) {
-            let question_mark = self.previous().clone();
             let middle = self.expression()?;
-            match self.consume(TokenType::Colon, "Expect ':' in ternary expression.") {
-                Ok(colon) => {
-                    let right = self.expression()?;
-                    return Ok(Box::new(Expr::Ternary(expr, question_mark, middle, colon, right)))
-                },
-                Err(message) => return Err(message)
-            }
+            self.consume(TokenType::Colon, "Expect ':' in ternary expression.")?;
+            let right = self.expression()?;
+            return Ok(Box::new(Expr::Ternary(expr, middle, right)))
         }
         Ok(expr)
     }
@@ -131,7 +161,7 @@ impl<'a> Parser<'a> {
     fn equality(&mut self) -> ParseResult<Expression> {
         let mut expr = self.comparison()?;
         while self.matches(&[TokenType::EqualEqual, TokenType::BangEqual]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.comparison()?;
             expr = Box::new(Expr::Binary(expr, operator, right));
         }
@@ -141,7 +171,7 @@ impl<'a> Parser<'a> {
     fn comparison(&mut self) -> ParseResult<Expression> {
         let mut expr = self.addition()?;
         while self.matches(&[TokenType::LessEqual, TokenType::Less, TokenType::GreaterEqual, TokenType::Greater]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.addition()?;
             expr = Box::new(Expr::Binary(expr, operator, right));
         }
@@ -151,7 +181,7 @@ impl<'a> Parser<'a> {
     fn addition(&mut self) -> ParseResult<Expression> {
         let mut expr = self.multiplication()?;
         while self.matches(&[TokenType::Minus, TokenType::Plus]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.multiplication()?;
             expr = Box::new(Expr::Binary(expr, operator, right));
         }
@@ -161,7 +191,7 @@ impl<'a> Parser<'a> {
     fn multiplication(&mut self) -> ParseResult<Expression> {
         let mut expr = self.unary()?;
         while self.matches(&[TokenType::Slash, TokenType::Star]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.unary()?;
             expr = Box::new(Expr::Binary(expr, operator, right));
         }
@@ -170,7 +200,7 @@ impl<'a> Parser<'a> {
 
     fn unary(&mut self) -> ParseResult<Expression> {
         if self.matches(&[TokenType::Minus, TokenType::Bang]) {
-            let operator = self.previous().clone();
+            let operator = self.previous();
             let right = self.unary()?;
             return Ok(Box::new(Expr::Unary(operator, right)))
         }
@@ -203,7 +233,7 @@ impl<'a> Parser<'a> {
         }
 
         if self.matches(&[TokenType::Identifier]) {
-            return Ok(Box::new(Expr::Variable(self.previous().clone())))
+            return Ok(Box::new(Expr::Variable(self.previous())))
         }
 
         Err(self.parse_error("Expect expression."))
@@ -254,7 +284,7 @@ impl<'a> Parser<'a> {
         self.peek().typ == *token_type
     }
 
-    fn advance(&mut self) -> &Token {
+    fn advance(&mut self) -> Token {
         if !self.is_at_end() {
             self.current += 1;
         }
@@ -269,7 +299,7 @@ impl<'a> Parser<'a> {
         &self.tokens[self.current]
     }
 
-    fn previous(&self) -> &Token {
-        &self.tokens[self.current - 1]
+    fn previous(&self) -> Token {
+        self.tokens[self.current - 1].clone()
     }
 }

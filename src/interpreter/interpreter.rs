@@ -31,21 +31,9 @@ impl Interpreter {
             Stmt::Expression(expr) => self.visit_expression_stmt(expr),
             Stmt::Print(expr) => self.visit_print_stmt(expr),
             Stmt::Var(name, expr) => self.visit_var_stmt(name, expr),
-            Stmt::Block(statements) => self.visit_block_stmt(statements)
+            Stmt::Block(statements) => self.visit_block_stmt(statements),
+            Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch)
         }?;
-        Ok(())
-    }
-
-    fn visit_block_stmt(&mut self, statements: &Declarations) -> RuntimeResult<()> {
-        let previous = self.environment.clone();
-        self.environment = Environment::new(Some(self.environment.clone()));
-        for statement in statements {
-            if let Some(err) = self.visit_stmt(statement).err() {
-                self.environment = previous;
-                return Err(err)
-            }
-        }
-        self.environment = previous;
         Ok(())
     }
 
@@ -69,16 +57,40 @@ impl Interpreter {
         return Ok(())
     }
 
+    fn visit_block_stmt(&mut self, statements: &Declarations) -> RuntimeResult<()> {
+        let previous = self.environment.clone();
+        self.environment = Environment::new(Some(self.environment.clone()));
+        for statement in statements {
+            if let Some(err) = self.visit_stmt(statement).err() {
+                self.environment = previous;
+                return Err(err)
+            }
+        }
+        self.environment = previous;
+        Ok(())
+    }
+
+    fn visit_if_stmt(&mut self, condition: &Expr, then_branch: &Stmt, else_branch: &Option<Stmt>) -> RuntimeResult<()> {
+        let result = self.visit_expr(condition)?;
+        if self.is_truthy(&result) {
+            return self.visit_stmt(then_branch)
+        }
+        if let Some(else_branch) = else_branch {
+            return self.visit_stmt(else_branch)
+        }
+        return Ok(())
+    }
+
     fn visit_expr(&mut self, expr: &Expr) -> RuntimeResult<Literal> {
         match expr {
+            Expr::Assign(name, value) => self.visit_assign_expr(name, value),
+            Expr::Variable(var) => self.visit_var_expr(var),
+            Expr::Binary(left, operator, right) => self.visit_binary_expr(left, operator, right),
+            Expr::Logical(left, operator, right) => self.visit_logical_expr(left, operator, right),
+            Expr::Ternary(left, middle, right) => self.visit_ternary_expr(left, middle, right),
             Expr::Grouping(group) => self.visit_grouping_expr(group),
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
-            Expr::Literal(value) => self.visit_literal(value.clone()),
-            Expr::Binary(left, operator, right) => self.visit_binary_expr(left, operator, right),
-            Expr::Ternary(left, _, middle, _, right) => self.visit_ternary_expr(left, middle, right),
-            Expr::Variable(var) => self.visit_var_expr(var),
-            Expr::Assign(name, value) => self.visit_assign_expr(name, value),
-            _ => unimplemented!()
+            Expr::Literal(value) => self.visit_literal(value.clone())
         }
     }
 
@@ -107,16 +119,30 @@ impl Interpreter {
         }
     }
 
+    fn visit_logical_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {
+        let left = self.visit_expr(left)?;
+        if operator.typ == TokenType::Or {
+            if self.is_truthy(&left) {
+                return Ok(left)
+            }
+        } else {
+            if !self.is_truthy(&left) {
+                return Ok(left)
+            }
+        }
+        self.visit_expr(right)
+    }
+
     fn visit_ternary_expr(&mut self, left: &Expr, middle: &Expr, right: &Expr) -> RuntimeResult<Literal> {
         let l = self.visit_expr(left)?;
-        match self.is_truthy(l) {
+        match self.is_truthy(&l) {
             true => return self.visit_expr(middle),
             false => return self.visit_expr(right)
         }
     }
 
-    fn visit_literal(&self, value: Literal) -> RuntimeResult<Literal> {
-        Ok(value)
+    fn visit_grouping_expr(&mut self, group: &Expr) -> RuntimeResult<Literal> {
+        self.visit_expr(&group)
     }
 
     fn visit_unary_expr(&mut self, operator: &Token, expr: &Expr) -> RuntimeResult<Literal> {
@@ -130,14 +156,14 @@ impl Interpreter {
                 }
             },
             TokenType::Bang => {
-                return Ok(Literal::Bool(!self.is_truthy(right)))
+                return Ok(Literal::Bool(!self.is_truthy(&right)))
             }
             _ => return Err(RuntimeError::new(operator.clone(), "Uknown unary operator."))
         }
     }
 
-    fn visit_grouping_expr(&mut self, group: &Expr) -> RuntimeResult<Literal> {
-        self.visit_expr(&group)
+    fn visit_literal(&self, value: Literal) -> RuntimeResult<Literal> {
+        Ok(value)
     }
 
     fn calculate_addition(&self, left: &Literal, operator: &Token, right: &Literal) -> RuntimeResult<Literal> {
@@ -190,10 +216,10 @@ impl Interpreter {
         Err(RuntimeError::new(operator.clone(), "Cannot compare non-booleans."))
     }
 
-    fn is_truthy(&self, value: Literal) -> bool {
+    fn is_truthy(&self, value: &Literal) -> bool {
         match value {
             Literal::Nothing => false,
-            Literal::Bool(b) => b,
+            Literal::Bool(b) => *b,
             _ => true
         }
     }

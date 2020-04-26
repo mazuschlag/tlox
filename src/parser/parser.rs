@@ -7,6 +7,7 @@ use super::statement::{Declarations, Stmt};
 pub struct Parser<'a> {
     tokens: &'a Vec<Token>,
     current: usize,
+    is_repl: bool,
     pub errors: Vec<String>,
     pub statements: Declarations
 }
@@ -14,16 +15,23 @@ pub struct Parser<'a> {
 type ParseResult<T> = Result<T, String>;
 
 impl<'a> Parser<'a> {
-    pub fn new(tokens: &Vec<Token>) -> Parser {
+    pub fn new(tokens: &Vec<Token>, is_repl: bool) -> Parser {
         Parser {
             tokens: tokens,
             current: 0,
+            is_repl: is_repl,
             errors: Vec::new(),
-            statements: Vec::new()
+            statements: Vec::new(),
         }
     }
 
     pub fn parse(&mut self) {
+        if self.is_repl && self.tokens[self.tokens.len()-2].typ != TokenType::SemiColon {
+            return match self.expression() {
+                Ok(expr) => self.statements.push(Stmt::Print(expr)),
+                Err(err) => self.synchronize(err)
+            }   
+        }
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(statement) => self.statements.push(statement),

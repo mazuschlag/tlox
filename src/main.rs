@@ -24,7 +24,7 @@ fn run_file(file_name: &str) {
     let mut input = String::new();
     let mut interpreter = Interpreter::new();
     source_file.read_to_string(&mut input).unwrap();
-    run(&mut interpreter, &input);
+    run(&mut interpreter, &input, false);
 }
 
 fn run_prompt() {
@@ -32,8 +32,8 @@ fn run_prompt() {
     let mut interpreter = Interpreter::new();
     for line in io::stdin().lock().lines() {
         match line {
-            Ok(input) => { 
-                run(&mut interpreter, &input);
+            Ok(input) => {
+                run(&mut interpreter, &input, true);
                 new_line();
             },
             Err(error) => println!("Error reading line: {}", error)
@@ -41,10 +41,10 @@ fn run_prompt() {
     }
 }
 
-fn run(interpreter: &mut Interpreter, source: &str) {
+fn run(interpreter: &mut Interpreter, source: &str, is_repl: bool) {
     let mut scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
-    let mut parser = Parser::new(tokens);
+    let mut parser = Parser::new(tokens, is_repl);
     parser.parse();
     if parser.errors.len() > 0 {
         parser.errors.iter().for_each(|err| { println!("{}", err) });

@@ -26,12 +26,6 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) {
-        if self.is_repl && self.tokens[self.tokens.len()-2].typ != TokenType::SemiColon {
-            return match self.expression() {
-                Ok(expr) => self.statements.push(Stmt::Print(expr)),
-                Err(err) => self.synchronize(err)
-            }   
-        }
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(statement) => self.statements.push(statement),
@@ -85,6 +79,9 @@ impl<'a> Parser<'a> {
 
     fn expression_statement(&mut self) -> ParseResult<Stmt> {
         let value = self.expression()?;
+        if self.is_repl {
+            return Ok(Stmt::Print(value))
+        }
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Expression(value))
     }

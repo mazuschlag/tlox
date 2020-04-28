@@ -2,24 +2,20 @@ use crate::lexer::token::{Token, Literal};
 use crate::interpreter::interpreter::RuntimeResult;
 use crate::error::report::RuntimeError;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
 
-type Enclosing = Rc<RefCell<Environment>>;
+type Enclosing = Option<Rc<RefCell<Environment>>>;
 
 #[derive(Clone)]
 pub struct Environment {
     values: HashMap<String, Literal>,
-    outer_scope: Option<Enclosing>
+    outer_scope: Enclosing
 }
 
 impl Environment {
-    pub fn new(enclosing: Option<Environment>) -> Environment {
+    pub fn new(outer_scope: Enclosing) -> Environment {
         let values = HashMap::new();
-        let outer_scope = match enclosing {
-            Some(env) => Some(Rc::new(RefCell::new(env))),
-            None => None
-        };
         Environment {
             values,
             outer_scope

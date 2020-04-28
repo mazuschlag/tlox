@@ -3,9 +3,11 @@ use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, Literal, TokenType};
 use crate::interpreter::environment::Environment;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Interpreter {
-    environment: Environment
+    environment: Rc<RefCell<Environment>>
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -13,7 +15,7 @@ pub type RuntimeResult<T> = Result<T, RuntimeError>;
 impl Interpreter {
     pub fn new() -> Interpreter {
         Interpreter {
-            environment: Environment::new(None)
+            environment: Rc::new(RefCell::new(Environment::new(None)))
         }
     }
 
@@ -32,7 +34,8 @@ impl Interpreter {
             Stmt::Print(expr) => self.visit_print_stmt(expr),
             Stmt::Var(name, expr) => self.visit_var_stmt(name, expr),
             Stmt::Block(statements) => self.visit_block_stmt(statements),
-            Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch)
+            Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch),
+            Stmt::While(condition, body) => self.visit_while_stmt(condition, body)
         }?;
         Ok(())
     }
@@ -53,13 +56,13 @@ impl Interpreter {
             Expr::Literal(Literal::Nothing) => Literal::Nothing,
             _ => self.visit_expr(initializer)?
         };
-        self.environment.define(name.lexeme.clone(), value);
+        self.environment.borrow_mut().define(name.lexeme.clone(), value);
         return Ok(())
     }
 
     fn visit_block_stmt(&mut self, statements: &Declarations) -> RuntimeResult<()> {
-        let previous = self.environment.clone();
-        self.environment = Environment::new(Some(self.environment.clone()));
+        let previous = Rc::clone(&self.environment);
+        self.environment = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&self.environment)))));
         for statement in statements {
             if let Some(err) = self.visit_stmt(statement).err() {
                 self.environment = previous;
@@ -81,6 +84,15 @@ impl Interpreter {
         return Ok(())
     }
 
+    fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> RuntimeResult<()> {
+        let mut result = self.visit_expr(condition)?;
+        while self.is_truthy(&result) {
+            self.visit_stmt(&body)?;
+            result = self.visit_expr(&condition)?;
+        }
+        Ok(())
+    }
+
     fn visit_expr(&mut self, expr: &Expr) -> RuntimeResult<Literal> {
         match expr {
             Expr::Assign(name, value) => self.visit_assign_expr(name, value),
@@ -96,12 +108,12 @@ impl Interpreter {
 
     fn visit_assign_expr(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<Literal> {
         let value = self.visit_expr(initializer)?;
-        self.environment.assign(name, value.clone())?;
+        self.environment.borrow_mut().assign(name, value.clone())?;
         Ok(value)
     }
 
     fn visit_var_expr(&self, name: &Token) -> RuntimeResult<Literal> {
-        self.environment.get(name)
+        self.environment.borrow().get(name)
     }
 
     fn visit_binary_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {

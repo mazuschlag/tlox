@@ -179,14 +179,14 @@ impl Interpreter {
     fn visit_call_expr(&mut self, callee: &Expr, right_paren: &Token, arguments: &Vec<Box<Expr>>) -> RuntimeResult<Literal> {
         let callee = self.visit_expr(callee)?;
         match callee {
-            Literal::Str(_) => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),
-            _ => {
+            Literal::Call(callee) =>  {
                 let mut evaluated_args = Vec::new();
                 for arg in arguments {
                     evaluated_args.push(self.visit_expr(arg)?);
                 };
                 Ok(Literal::Nothing)
             }
+            _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),
         }
     }
 

@@ -1,4 +1,5 @@
-use crate::lexer::token::{Token, TokenType, Literal};
+use crate::lexer::token::{Token, TokenType};
+use crate::lexer::literal::Literal;
 use crate::error::report::error;
 use super::expression::{Expr, Expression};
 use super::statement::{Declarations, Stmt};
@@ -265,7 +266,34 @@ impl<'a> Parser<'a> {
             let right = self.unary()?;
             return Ok(Box::new(Expr::Unary(operator, right)))
         }
-        self.primary()
+        self.call()
+    }
+
+    fn call(&mut self) -> ParseResult<Expression> {
+        let mut expr = self.primary()?;
+        loop {
+            if self.matches(&[TokenType::LeftParen]) {
+                expr = self.finish_call(expr)?;
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
+    fn finish_call(&mut self, expr: Box<Expr>) -> ParseResult<Expression> {
+        let mut arguments = Vec::new();
+        if !self.check(&TokenType::RightParen) {
+            arguments.push(self.expression()?);
+            while self.matches(&[TokenType::Comma]) {
+                if arguments.len() >= 255 {
+                    return Err(self.parse_error("Cannot have more than 255 arguments."))
+                }
+                arguments.push(self.expression()?);
+            }
+        }
+        let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments")?;
+        Ok(Box::new(Expr::Call(expr, paren, arguments)))
     }
 
     fn primary(&mut self) -> ParseResult<Expression> {

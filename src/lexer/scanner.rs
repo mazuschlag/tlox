@@ -1,13 +1,21 @@
 use super::token::{Token, TokenType};
-use super::literal::Literal;
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Kind {
+    Str,
+    Number,
+    Comment,
+    MultiComment,
+    Identifier,
+    Nothing
+}
 #[derive(Debug)]
 pub struct Scanner<'a> {
     source: &'a str,
     tokens: Vec<Token>,
     current_token: String,
+    current_kind: Kind,
     line: u32,
-    errors: Vec<String>,
-    literal: Literal 
+    errors: Vec<String>
 }
 
 impl<'a> Scanner<'a> {
@@ -16,9 +24,9 @@ impl<'a> Scanner<'a> {
             source: source,
             tokens: Vec::new(),
             current_token: String::new(),
+            current_kind: Kind::Nothing,
             line: 1,
-            errors: Vec::new(),
-            literal: Literal::Nothing,
+            errors: Vec::new()
         }
     }
 
@@ -27,23 +35,23 @@ impl<'a> Scanner<'a> {
             self.scan_token(c);
         }
         self.add_saved_token('\0');
-        self.tokens.push(Token::new(TokenType::Eof, String::new(), Literal::Nothing, self.line));
+        self.tokens.push(Token::new(TokenType::Eof, String::new(), self.line));
         &self.tokens
     }
 
     fn scan_token(&mut self, c: char) {
-        match &self.literal {
-            Literal::Comment if c != '\n' => return,
-            Literal::MultiComment if !self.multi_comment_end(c) => return,
-            Literal::Str(_) => {
+        match &self.current_kind {
+            Kind::Comment if c != '\n' => return,
+            Kind::MultiComment if !self.multi_comment_end(c) => return,
+            Kind::Str => {
                 self.add_to_string(c);
                 return
             },
-            Literal::Number(_) if valid_digit(c) => { 
+            Kind::Number if valid_digit(c) => { 
                 self.add_to_number(c);
                 return
             },
-            Literal::Identifier if valid_identifier(c) => {
+            Kind::Identifier if valid_identifier(c) => {
                 self.add_to_identifier(c);
                 return
             },
@@ -91,8 +99,8 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_to_string(&mut self, c: char) {
-        if self.literal == Literal::Nothing {
-            self.literal = Literal::Str("".to_owned());
+        if self.current_kind == Kind::Nothing {
+            self.current_kind = Kind::Str;
             return
         }
 
@@ -105,33 +113,33 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_to_number(&mut self, c: char) {
-        if self.literal == Literal::Nothing {
-            self.literal = Literal::Number(0.0);
+        if self.current_kind == Kind::Nothing {
+            self.current_kind = Kind::Number;
         }
         self.advance(c);
     }
 
     fn add_to_identifier(&mut self, c: char) {
-        if self.literal == Literal::Nothing {
-            self.literal = Literal::Identifier;
+        if self.current_kind == Kind::Nothing {
+            self.current_kind = Kind::Identifier;
         }
         self.advance(c);
     }
 
     fn add_saved_token(&mut self, c: char) {
-        match &self.literal {
-            Literal::Str(_) => self.add_error(self.line, "Unterminated string"),
-            Literal::Number(_) => self.add_token(TokenType::Number),
-            Literal::Identifier => self.add_token(self.identifier_type()),
-            Literal::Comment => return,
-            Literal::MultiComment if self.current_token.as_str() != "*/" => return,
+        match &self.current_kind {
+            Kind::Str => self.add_error(self.line, "Unterminated string"),
+            Kind::Number => self.add_token(TokenType::Number),
+            Kind::Identifier => self.add_token(self.identifier_type()),
+            Kind::Comment => return,
+            Kind::MultiComment if self.current_token.as_str() != "*/" => return,
             _ => ()
         };
 
         match self.current_token.as_str() {
             "/" if c != '/' && c != '*' => self.add_token(TokenType::Slash),
-            "*" if c != '/' && self.literal != Literal::MultiComment => self.add_token(TokenType::Star),
-            "*" if c != '/' && self.literal == Literal::MultiComment => self.current_token = String::new(),
+            "*" if c != '/' && self.current_kind != Kind::MultiComment => self.add_token(TokenType::Star),
+            "*" if c != '/' && self.current_kind == Kind::MultiComment => self.current_token = String::new(),
             "=" if c != '=' => self.add_token(TokenType::Equal),
             "!" if c != '=' => self.add_token(TokenType::Bang),
             "<" if c != '=' => self.add_token(TokenType::Less),
@@ -149,14 +157,9 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        match self.literal {
-            Literal::Str(_) => self.literal = Literal::Str(self.current_token.clone()),
-            Literal::Number(_) => self.literal = Literal::Number(self.current_token.parse().unwrap()),
-            _ => ()
-        };
-        self.tokens.push(Token::new(token_type, self.current_token.to_owned(), self.literal.to_owned(), self.line));
+        self.tokens.push(Token::new(token_type, self.current_token.to_owned(), self.line));
         self.current_token = String::new();
-        self.literal = Literal::Nothing;
+        self.current_kind = Kind::Nothing;
     }
 
     fn advance(&mut self, c: char) {
@@ -194,22 +197,22 @@ impl<'a> Scanner<'a> {
 
     fn new_line(&mut self) {
         self.line += 1;
-        if self.literal == Literal::Comment {
-            self.literal = Literal::Nothing;
+        if self.current_kind == Kind::Comment {
+            self.current_kind = Kind::Nothing;
         }
     }
 
     fn add_comment(&mut self) {
         if self.current_token.as_str() == "//" {
-            self.literal = Literal::Comment;
+            self.current_kind = Kind::Comment;
         } else {
-            self.literal = Literal::MultiComment;
+            self.current_kind = Kind::MultiComment;
         }
         self.current_token = String::new();
     }
 
     fn end_comment(&mut self) {
-        self.literal = Literal::Nothing;
+        self.current_kind = Kind::Nothing;
         self.current_token = String::new();
     }
 

@@ -309,8 +309,13 @@ impl<'a> Parser<'a> {
             return Ok(Box::new(Expr::Literal(Literal::Nothing)))
         }
 
-        if self.matches(&[TokenType::Number, TokenType::Str]) {
-            return Ok(Box::new(Expr::Literal(self.previous().literal.clone())))
+        if self.matches(&[TokenType::Number]) {
+            let num = self.previous().lexeme.parse().unwrap();
+            return Ok(Box::new(Expr::Literal(Literal::Number(num))))
+        }
+
+        if self.matches(&[TokenType::Str]) {
+            return Ok(Box::new(Expr::Literal(Literal::Str(self.previous().lexeme.clone()))))
         }
 
         if self.matches(&[TokenType::LeftParen]) {

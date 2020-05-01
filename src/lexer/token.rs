@@ -1,4 +1,3 @@
-use crate::lexer::literal::Literal;
 use std::fmt;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -50,7 +49,6 @@ pub enum TokenType {
     Eof
 }
 
-
 impl fmt::Display for TokenType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:?}", self)
@@ -61,16 +59,14 @@ impl fmt::Display for TokenType {
 pub struct Token {
     pub typ: TokenType,
     pub lexeme: String,
-    pub literal: Literal,
     pub line: u32
 }
 
 impl Token {
-    pub fn new(typ: TokenType, lexeme: String, literal: Literal, line: u32) -> Token {
+    pub fn new(typ: TokenType, lexeme: String, line: u32) -> Token {
         Token {
             typ,
             lexeme,
-            literal,
             line
         }
     }
@@ -78,6 +74,6 @@ impl Token {
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "{} {} {}", self.typ, self.lexeme, self.literal)
+       write!(f, "{} {}", self.typ, self.lexeme)
     }
 }

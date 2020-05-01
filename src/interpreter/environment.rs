@@ -1,4 +1,5 @@
-use crate::lexer::token::{Token, Literal};
+use crate::lexer::token::Token;
+use crate::lexer::literal::Literal;
 use crate::interpreter::interpreter::RuntimeResult;
 use crate::error::report::RuntimeError;
 use std::collections::HashMap;

@@ -1,8 +1,9 @@
 use crate::parser::expression::Expr;
 use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::{runtime_report, RuntimeError};
-use crate::lexer::token::{Token, Literal, TokenType};
+use crate::lexer::token::{Token, TokenType};
 use crate::interpreter::environment::Environment;
+use crate::lexer::literal::Literal;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -102,6 +103,7 @@ impl Interpreter {
             Expr::Ternary(left, middle, right) => self.visit_ternary_expr(left, middle, right),
             Expr::Grouping(group) => self.visit_grouping_expr(group),
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
+            Expr::Call(callee, right_paren, arguments) => self.visit_call_expr(callee, right_paren, arguments),
             Expr::Literal(value) => self.visit_literal(value.clone())
         }
     }
@@ -171,6 +173,20 @@ impl Interpreter {
                 return Ok(Literal::Bool(!self.is_truthy(&right)))
             }
             _ => return Err(RuntimeError::new(operator.clone(), "Uknown unary operator."))
+        }
+    }
+
+    fn visit_call_expr(&mut self, callee: &Expr, right_paren: &Token, arguments: &Vec<Box<Expr>>) -> RuntimeResult<Literal> {
+        let callee = self.visit_expr(callee)?;
+        match callee {
+            Literal::Identifier => {
+                let mut evaluated_args = Vec::new();
+                for arg in arguments {
+                    evaluated_args.push(self.visit_expr(arg)?);
+                };
+                Ok(Literal::Nothing)
+            },
+            _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes"))
         }
     }
 

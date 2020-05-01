@@ -1,5 +1,5 @@
-use super::token::{Token, TokenType, Literal};
-
+use super::token::{Token, TokenType};
+use super::literal::Literal;
 #[derive(Debug)]
 pub struct Scanner<'a> {
     source: &'a str,

@@ -3,20 +3,25 @@ use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, TokenType};
 use crate::interpreter::environment::Environment;
+use crate::interpreter::function::Function;
 use crate::lexer::literal::Literal;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 pub struct Interpreter {
-    environment: Rc<RefCell<Environment>>
+    pub environment: Rc<RefCell<Environment>>,
+    pub globals: Rc<RefCell<Environment>>
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 impl Interpreter {
     pub fn new() -> Interpreter {
+        let globals =  Rc::new(RefCell::new(Environment::new(None)));
+        let environment = Rc::clone(&globals);
         Interpreter {
-            environment: Rc::new(RefCell::new(Environment::new(None)))
+            globals,
+            environment
         }
     }
 
@@ -36,7 +41,8 @@ impl Interpreter {
             Stmt::Var(name, expr) => self.visit_var_stmt(name, expr),
             Stmt::Block(statements) => self.visit_block_stmt(statements),
             Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch),
-            Stmt::While(condition, body) => self.visit_while_stmt(condition, body)
+            Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
+            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body)
         }?;
         Ok(())
     }
@@ -74,6 +80,19 @@ impl Interpreter {
         Ok(())
     }
 
+    pub fn execute_block_stmt(&mut self, statements: &Declarations, environment: Environment) -> RuntimeResult<()> {
+        let previous = Rc::clone(&self.environment);
+        self.environment = Rc::new(RefCell::new(environment));
+        for statement in statements {
+            if let Some(err) = self.visit_stmt(statement).err() {
+                self.environment = previous;
+                return Err(err)
+            }
+        }
+        self.environment = previous;
+        Ok(())
+    }
+
     fn visit_if_stmt(&mut self, condition: &Expr, then_branch: &Stmt, else_branch: &Option<Stmt>) -> RuntimeResult<()> {
         let result = self.visit_expr(condition)?;
         if self.is_truthy(&result) {
@@ -91,6 +110,12 @@ impl Interpreter {
             self.visit_stmt(&body)?;
             result = self.visit_expr(&condition)?;
         }
+        Ok(())
+    }
+
+    fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Vec<Stmt>) -> RuntimeResult<()> {
+        let function = Function::new(name.clone(), params.clone(), body.clone());
+        self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
         Ok(())
     }
 
@@ -179,11 +204,15 @@ impl Interpreter {
     fn visit_call_expr(&mut self, callee: &Expr, right_paren: &Token, arguments: &Vec<Box<Expr>>) -> RuntimeResult<Literal> {
         let callee = self.visit_expr(callee)?;
         match callee {
-            Literal::Call(callee) =>  {
+            Literal::Fun(function) =>  {
+                if arguments.len() != function.arity {
+                    return Err(RuntimeError::new(right_paren.clone(), "Wrong number of arguments."))
+                }
                 let mut evaluated_args = Vec::new();
                 for arg in arguments {
                     evaluated_args.push(self.visit_expr(arg)?);
                 };
+                function.call(self, &evaluated_args)?;
                 Ok(Literal::Nothing)
             }
             _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),

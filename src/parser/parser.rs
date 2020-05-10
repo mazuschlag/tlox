@@ -39,6 +39,9 @@ impl<'a> Parser<'a> {
         if self.matches(&[TokenType::Var]) {
             return self.var_declaration()
         }
+        if self.matches(&[TokenType::Fun]) {
+            return self.function("function")
+        }
         self.statement()
     }
 
@@ -50,6 +53,25 @@ impl<'a> Parser<'a> {
         };
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Var(name, initializer))
+    }
+
+    fn function(&mut self, kind: &str) -> ParseResult<Stmt> {
+        let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
+        self.consume(TokenType::LeftParen, &format!("Expect '(' after {} name.", kind))?;
+        let mut params = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+            while self.matches(&[TokenType::Comma]) {
+                if params.len() > 254 {
+                    return Err(self.parse_error("Cannot have more than 255 arguments."))
+                }
+                params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+        self.consume(TokenType::LeftBrace, &format!("Expect '{{' before {} body.", kind))?;
+        let body = self.block()?;
+        Ok(Stmt::Function(name, params, body))
     }
 
     fn statement(&mut self) -> ParseResult<Stmt> {
@@ -73,7 +95,7 @@ impl<'a> Parser<'a> {
 
     fn block(&mut self) -> ParseResult<Declarations> {
         let mut statements = Vec::new();
-        while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             statements.push(self.declaration()?);
         }
         self.consume(TokenType::RightBrace, "Expect '}' after block.")?;
@@ -122,7 +144,7 @@ impl<'a> Parser<'a> {
                 Err(err) => return Err(err)
             }
         };
-        let condition = if !self.check(&TokenType::SemiColon) {
+        let condition = if !self.check(TokenType::SemiColon) {
             match self.expression() {
                 Ok(expr) => Some(expr),
                 Err(err) => return Err(err)
@@ -131,7 +153,7 @@ impl<'a> Parser<'a> {
             None
         };
         self.consume(TokenType::SemiColon, "Expect ';' after loop condition.")?;
-        let increment = if !self.check(&TokenType::RightParen) {
+        let increment = if !self.check(TokenType::RightParen) {
             match self.expression() {
                 Ok(expr) => Some(expr),
                 Err(err) => return Err(err)
@@ -283,7 +305,7 @@ impl<'a> Parser<'a> {
 
     fn finish_call(&mut self, expr: Box<Expr>) -> ParseResult<Expression> {
         let mut arguments = Vec::new();
-        if !self.check(&TokenType::RightParen) {
+        if !self.check(TokenType::RightParen) {
             arguments.push(self.expression()?);
             while self.matches(&[TokenType::Comma]) {
                 if arguments.len() >= 255 {
@@ -334,7 +356,7 @@ impl<'a> Parser<'a> {
     }
 
     fn consume(&mut self, token_type: TokenType, message: &str) -> ParseResult<Token> {
-        if self.check(&token_type) {
+        if self.check(token_type) {
             return Ok(self.advance().clone());
         }
         Err(self.parse_error(message))
@@ -363,7 +385,7 @@ impl<'a> Parser<'a> {
 
     fn matches(&mut self, token_types: &[TokenType]) -> bool {
         for token_type in token_types {
-            if self.check(token_type) {
+            if self.check(*token_type) {
                 self.advance();
                 return true
             }
@@ -371,11 +393,11 @@ impl<'a> Parser<'a> {
         false
     }
 
-    fn check(&self, token_type: &TokenType) -> bool {
+    fn check(&self, token_type: TokenType) -> bool {
         if self.is_at_end() {
             return false
         }
-        self.peek().typ == *token_type
+        self.peek().typ == token_type
     }
 
     fn advance(&mut self) -> Token {

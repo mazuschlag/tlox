@@ -1,7 +1,7 @@
 use crate::lexer::token::Token;
 use crate::lexer::literal::Literal;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
     Binary(Expression, Token, Expression),
     Ternary(Expression, Expression, Expression),

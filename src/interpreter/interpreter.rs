@@ -10,7 +10,8 @@ use std::rc::Rc;
 
 pub struct Interpreter {
     pub environment: Rc<RefCell<Environment>>,
-    pub globals: Rc<RefCell<Environment>>
+    pub globals: Rc<RefCell<Environment>>,
+    return_value: Literal
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -19,9 +20,11 @@ impl Interpreter {
     pub fn new() -> Interpreter {
         let globals =  Rc::new(RefCell::new(Environment::new(None)));
         let environment = Rc::clone(&globals);
+        let return_value = Literal::Nothing;
         Interpreter {
             globals,
-            environment
+            environment,
+            return_value
         }
     }
 
@@ -39,26 +42,36 @@ impl Interpreter {
             Stmt::Expression(expr) => self.visit_expression_stmt(expr),
             Stmt::Print(expr) => self.visit_print_stmt(expr),
             Stmt::Var(name, expr) => self.visit_var_stmt(name, expr),
-            Stmt::Block(statements) => self.visit_block_stmt(statements),
+            Stmt::Block(statements) => self.visit_block_stmt(statements, None),
             Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch),
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
-            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body)
+            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
+            Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value)
         }?;
         Ok(())
     }
 
     fn visit_expression_stmt(&mut self, expr: &Expr) -> RuntimeResult<()> {
+        if self.return_value != Literal::Nothing {
+            return Ok(())
+        }
         self.visit_expr(expr)?;
         Ok(())
     }
 
     fn visit_print_stmt(&mut self, expr: &Expr) -> RuntimeResult<()> {
+        if self.return_value != Literal::Nothing {
+            return Ok(())
+        }
         let value = self.visit_expr(expr)?;
         println!("{}", value);
         Ok(())
     }
 
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<()> {
+        if self.return_value != Literal::Nothing {
+            return Ok(())
+        }
         let value = match *initializer {
             Expr::Literal(Literal::Nothing) => Literal::Nothing,
             _ => self.visit_expr(initializer)?
@@ -67,26 +80,23 @@ impl Interpreter {
         return Ok(())
     }
 
-    fn visit_block_stmt(&mut self, statements: &Declarations) -> RuntimeResult<()> {
+    pub fn visit_block_stmt(&mut self, statements: &Declarations, environment: Option<Environment>) -> RuntimeResult<()> {
+        if self.return_value != Literal::Nothing {
+            return Ok(())
+        }
         let previous = Rc::clone(&self.environment);
-        self.environment = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&self.environment)))));
+        self.environment = match environment {
+            Some(env) => Rc::new(RefCell::new(env)),
+            None => Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&self.environment)))))
+        };
         for statement in statements {
             if let Some(err) = self.visit_stmt(statement).err() {
                 self.environment = previous;
                 return Err(err)
             }
-        }
-        self.environment = previous;
-        Ok(())
-    }
-
-    pub fn execute_block_stmt(&mut self, statements: &Declarations, environment: Environment) -> RuntimeResult<()> {
-        let previous = Rc::clone(&self.environment);
-        self.environment = Rc::new(RefCell::new(environment));
-        for statement in statements {
-            if let Some(err) = self.visit_stmt(statement).err() {
+            if self.return_value != Literal::Nothing {
                 self.environment = previous;
-                return Err(err)
+                return Ok(())
             }
         }
         self.environment = previous;
@@ -94,6 +104,9 @@ impl Interpreter {
     }
 
     fn visit_if_stmt(&mut self, condition: &Expr, then_branch: &Stmt, else_branch: &Option<Stmt>) -> RuntimeResult<()> {
+        if self.return_value != Literal::Nothing {
+            return Ok(())
+        }
         let result = self.visit_expr(condition)?;
         if self.is_truthy(&result) {
             return self.visit_stmt(then_branch)
@@ -108,6 +121,9 @@ impl Interpreter {
         let mut result = self.visit_expr(condition)?;
         while self.is_truthy(&result) {
             self.visit_stmt(&body)?;
+            if self.return_value != Literal::Nothing {
+                return Ok(())
+            }
             result = self.visit_expr(&condition)?;
         }
         Ok(())
@@ -116,6 +132,15 @@ impl Interpreter {
     fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Vec<Stmt>) -> RuntimeResult<()> {
         let function = Function::new(name.clone(), params.clone(), body.clone());
         self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
+        Ok(())
+    }
+
+    #[allow(unused_variables)]
+    fn visit_return_stmt(&mut self, keyword: &Token, value: &Expr) -> RuntimeResult<()> {
+        self.return_value = match value {
+            Expr::Literal(Literal::Nothing) => Literal::Nothing,
+            _ => self.visit_expr(value)?
+        };
         Ok(())
     }
 
@@ -154,7 +179,7 @@ impl Interpreter {
             TokenType::BangEqual => Ok(Literal::Bool(!self.is_equal(l, r))),
             TokenType::EqualEqual => Ok(Literal::Bool(self.is_equal(l, r))),
             TokenType::Comma => Ok(r),
-            _ => unimplemented!()
+            _ => Err(RuntimeError::new(operator.clone(), "Unknown binary operator."))
         }
     }
 
@@ -213,7 +238,9 @@ impl Interpreter {
                     evaluated_args.push(self.visit_expr(arg)?);
                 };
                 function.call(self, &evaluated_args)?;
-                Ok(Literal::Nothing)
+                let value = self.return_value.clone();
+                self.return_value = Literal::Nothing;
+                return Ok(value)
             }
             _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),
         }

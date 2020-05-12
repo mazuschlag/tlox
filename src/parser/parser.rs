@@ -90,6 +90,9 @@ impl<'a> Parser<'a> {
         if self.matches(&[TokenType::For]) {
             return self.for_statement()
         }
+        if self.matches(&[TokenType::Return]) {
+            return self.return_statement()
+        }
         self.expression_statement()
     }
 
@@ -174,6 +177,17 @@ impl<'a> Parser<'a> {
             body = Stmt::Block(vec![stmt, body]);
         }
         Ok(body)
+    }
+
+    fn return_statement(&mut self) -> ParseResult<Stmt> {
+        let keyword = self.previous();
+        let value = if !self.check(TokenType::SemiColon) {
+            self.expression()?
+        } else {
+            Box::new(Expr::Literal(Literal::Nothing))
+        };
+        self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
+        Ok(Stmt::Return(keyword, value))
     }
 
     fn expression_statement(&mut self) -> ParseResult<Stmt> {

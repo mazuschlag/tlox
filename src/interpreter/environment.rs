@@ -47,6 +47,6 @@ impl Environment {
         if let Some(enclosing) = &self.outer_scope {
             return enclosing.borrow_mut().assign(name, value)
         }
-        Err(RuntimeError::new(name.clone(), &format!("Undeined variable '{}'.", name.lexeme)))
+        Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
     }
 }

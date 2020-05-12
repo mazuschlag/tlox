@@ -30,7 +30,7 @@ impl Function {
         for i in 0..self.arity {
             env.define(self.params[i].lexeme.clone(), args[i].clone());
         }
-        interpreter.execute_block_stmt(&self.body, env)?;
+        interpreter.visit_block_stmt(&self.body, Some(env))?;
         Ok(())
     }
 }

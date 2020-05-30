@@ -130,7 +130,7 @@ impl Interpreter {
     }
 
     fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Vec<Stmt>) -> RuntimeResult<()> {
-        let function = Function::new(name.clone(), params.clone(), body.clone());
+        let function = Function::new(name.clone(), params.clone(), body.clone(), &self.environment);
         self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
         Ok(())
     }

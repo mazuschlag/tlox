@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 type Enclosing = Option<Rc<RefCell<Environment>>>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     values: HashMap<String, Literal>,
     outer_scope: Enclosing

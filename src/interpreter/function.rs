@@ -10,14 +10,14 @@ use std::fmt;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function {
     pub arity: usize,
-    name: Token,
+    name: Option<Token>,
     params: Vec<Token>,
     body: Vec<Stmt>,
     closure: Rc<RefCell<Environment>>
 }
 
 impl Function {
-    pub fn new(name: Token, params: Vec<Token>, body: Vec<Stmt>, parent: &Rc<RefCell<Environment>>) -> Function {
+    pub fn new(name: Option<Token>, params: Vec<Token>, body: Vec<Stmt>, parent: &Rc<RefCell<Environment>>) -> Function {
         let arity = params.len();
         let closure = Rc::clone(parent);
         Function {
@@ -41,6 +41,9 @@ impl Function {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "<fn {}>", self.name.lexeme)
+        if let Some(name) = &self.name {
+            return write!(f, "<fn {}>", name.lexeme)
+        }
+        write!(f, "<lambda>")
     }
 }

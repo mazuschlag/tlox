@@ -320,16 +320,41 @@ impl<'a> Parser<'a> {
     fn finish_call(&mut self, expr: Box<Expr>) -> ParseResult<Expression> {
         let mut arguments = Vec::new();
         if !self.check(TokenType::RightParen) {
-            arguments.push(self.expression()?);
+            arguments.push(self.call_argument()?);
             while self.matches(&[TokenType::Comma]) {
                 if arguments.len() >= 255 {
                     return Err(self.parse_error("Cannot have more than 255 arguments."))
                 }
-                arguments.push(self.expression()?);
+                arguments.push(self.call_argument()?);
             }
         }
         let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments")?;
         Ok(Box::new(Expr::Call(expr, paren, arguments)))
+    }
+
+    fn call_argument(&mut self) -> ParseResult<Expression> {
+        if self.matches(&[TokenType::Fun]) {
+            return self.lambda()
+        }
+        self.expression()
+    }
+
+    fn lambda(&mut self) -> ParseResult<Expression> {
+        self.consume(TokenType::LeftParen, &format!("Expect '(' after lambda declaration."))?;
+        let mut params = Vec::new();
+        if !self.check(TokenType::RightParen) {
+            params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+            while self.matches(&[TokenType::Comma]) {
+                if params.len() > 254 {
+                    return Err(self.parse_error("Cannot have more than 255 arguments."))
+                }
+                params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
+            }
+        }
+        self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+        self.consume(TokenType::LeftBrace, &format!("Expect '{{' before lambda body."))?;
+        let body = self.block()?;
+        Ok(Box::new(Expr::Lambda(params, body)))
     }
 
     fn primary(&mut self) -> ParseResult<Expression> {

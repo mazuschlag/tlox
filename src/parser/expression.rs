@@ -1,5 +1,6 @@
 use crate::lexer::token::Token;
 use crate::lexer::literal::Literal;
+use crate::parser::statement::Declarations;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expr {
@@ -11,7 +12,8 @@ pub enum Expr {
     Unary(Token, Expression),
     Variable(Token),
     Assign(Token, Expression),
-    Call(Expression, Token, Vec<Box<Expr>>)
+    Call(Expression, Token, Vec<Box<Expr>>),
+    Lambda(Vec<Token>, Declarations)
 }
 
 pub type Expression = Box<Expr>;

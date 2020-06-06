@@ -130,7 +130,7 @@ impl Interpreter {
     }
 
     fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Vec<Stmt>) -> RuntimeResult<()> {
-        let function = Function::new(name.clone(), params.clone(), body.clone(), &self.environment);
+        let function = Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment);
         self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
         Ok(())
     }
@@ -154,6 +154,7 @@ impl Interpreter {
             Expr::Grouping(group) => self.visit_grouping_expr(group),
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
             Expr::Call(callee, right_paren, arguments) => self.visit_call_expr(callee, right_paren, arguments),
+            Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
             Expr::Literal(value) => self.visit_literal(value.clone())
         }
     }
@@ -244,6 +245,11 @@ impl Interpreter {
             }
             _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),
         }
+    }
+
+    fn visit_lambda_expr(&self, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<Literal> {
+        let function = Function::new(None, params.clone(), body.clone(), &self.environment);
+        Ok(Literal::Fun(function))
     }
 
     fn visit_literal(&self, value: Literal) -> RuntimeResult<Literal> {

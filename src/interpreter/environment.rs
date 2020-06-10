@@ -41,7 +41,7 @@ impl Environment {
 
     pub fn assign(&mut self, name: &Token, value: Literal) -> RuntimeResult<()> {
         if self.values.contains_key(&name.lexeme) {
-            *self.values.get_mut(&name.lexeme).unwrap() = value;
+            self.values.insert(name.lexeme.clone(), value);
             return Ok(())
         }
         if let Some(enclosing) = &self.outer_scope {

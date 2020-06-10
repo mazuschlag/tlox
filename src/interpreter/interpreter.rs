@@ -1,4 +1,4 @@
-use crate::parser::expression::Expr;
+use crate::parser::expression::{Expression, Expr};
 use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, TokenType};
@@ -129,7 +129,7 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Vec<Stmt>) -> RuntimeResult<()> {
+    fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<()> {
         let function = Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment);
         self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
         Ok(())
@@ -227,7 +227,7 @@ impl Interpreter {
         }
     }
 
-    fn visit_call_expr(&mut self, callee: &Expr, right_paren: &Token, arguments: &Vec<Box<Expr>>) -> RuntimeResult<Literal> {
+    fn visit_call_expr(&mut self, callee: &Expr, right_paren: &Token, arguments: &Vec<Expression>) -> RuntimeResult<Literal> {
         let callee = self.visit_expr(callee)?;
         match callee {
             Literal::Fun(function) =>  {

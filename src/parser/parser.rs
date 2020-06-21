@@ -165,10 +165,15 @@ impl<'a> Parser<'a> {
             None
         };
         self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
-        let mut body = self.statement()?;
-        if let Some(expr) = increment {
-            body = Stmt::Block(vec![body, Stmt::Expression(expr)]);
-        }
+        let mut body = if self.matches(&[TokenType::LeftBrace]) {
+            let mut block = self.block()?;
+            if let Some(expr) = increment {
+                block.push(Stmt::Expression(expr))
+            }
+            Stmt::Block(block)
+        } else {
+            self.statement()?
+        };
         body = match condition {
             Some(expr) => Stmt::While(expr, Box::new(body)),
             None => Stmt::While(Box::new(Expr::Literal(Literal::Bool(true))), Box::new(body))

@@ -6,11 +6,13 @@ use crate::interpreter::environment::Environment;
 use crate::interpreter::function::Function;
 use crate::lexer::literal::Literal;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub struct Interpreter {
     pub environment: Rc<RefCell<Environment>>,
     pub globals: Rc<RefCell<Environment>>,
+    locals: HashMap<Token, usize>,
     return_value: Literal
 }
 
@@ -20,15 +22,22 @@ impl Interpreter {
     pub fn new() -> Interpreter {
         let globals =  Rc::new(RefCell::new(Environment::new(None)));
         let environment = Rc::clone(&globals);
+        let locals = HashMap::new();
         let return_value = Literal::Nothing;
         Interpreter {
             globals,
             environment,
+            locals,
             return_value
         }
     }
 
+    pub fn resolve(&mut self, name: &Token, depth: usize) {
+        self.locals.insert(name.clone(), depth);
+    }
+
     pub fn interpret(&mut self, program: &Declarations) {
+        dbg!(&self.locals);
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -63,8 +72,8 @@ impl Interpreter {
         if self.return_value != Literal::Nothing {
             return Ok(())
         }
-        let value = self.visit_expr(expr)?;
-        println!("{}", value);
+        let _ = self.visit_expr(expr)?;
+        //println!("{}", value);
         Ok(())
     }
 
@@ -161,12 +170,20 @@ impl Interpreter {
 
     fn visit_assign_expr(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<Literal> {
         let value = self.visit_expr(initializer)?;
-        self.environment.borrow_mut().assign(name, value.clone())?;
+        let distance = self.locals.get(name);
+        match distance {
+            Some(d) => self.environment.borrow_mut().assign_at(name, value.clone(), *d)?,
+            None => self.globals.borrow_mut().assign(name, value.clone())?
+        }
         Ok(value)
     }
 
     fn visit_var_expr(&self, name: &Token) -> RuntimeResult<Literal> {
-        self.environment.borrow().get(name)
+        let distance = self.locals.get(name);
+        match distance {
+            Some(d) => self.environment.borrow().get_at(name, *d),
+            None => self.globals.borrow().get(name)
+        }
     }
 
     fn visit_binary_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {

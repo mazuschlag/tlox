@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::{self, Read, BufRead, Write};
 use lexer::scanner::Scanner;
 use parser::parser::Parser;
+use parser::resolver::Resolver;
 use interpreter::interpreter::Interpreter;
 
 fn main() {
@@ -51,7 +52,13 @@ fn run(interpreter: &mut Interpreter, source: &str, is_repl: bool) {
         return
     }
     let program = parser.statements;
-    interpreter.interpret(&program);
+    dbg!(&program);
+    let mut resolver = Resolver::new(interpreter);
+    match resolver.resolve(&program) {
+        Ok(()) => interpreter.interpret(&program),
+        Err(e) => println!("{}", e)
+    }
+   
 }
 
 fn new_line() {

@@ -10,7 +10,7 @@ type Enclosing = Option<Rc<RefCell<Environment>>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
-    values: HashMap<String, Literal>,
+    pub values: HashMap<String, Literal>,
     outer_scope: Enclosing
 }
 
@@ -39,6 +39,13 @@ impl Environment {
         }
     }
 
+    pub fn get_at(&self, name: &Token, distance: usize) -> RuntimeResult<Literal> {
+        match self.ancestor(name, distance)?.borrow().values.get(&name.lexeme) {
+            Some(value) => Ok(value.clone()),
+            None => Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+        }
+    }
+
     pub fn assign(&mut self, name: &Token, value: Literal) -> RuntimeResult<()> {
         if self.values.contains_key(&name.lexeme) {
             self.values.insert(name.lexeme.clone(), value);
@@ -48,5 +55,21 @@ impl Environment {
             return enclosing.borrow_mut().assign(name, value)
         }
         Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+    }
+
+    pub fn assign_at(&mut self, name: &Token, value: Literal, distance: usize) -> RuntimeResult<()> {
+        self.ancestor(name, distance)?.borrow_mut().values.insert(name.lexeme.clone(), value);
+        Ok(())
+    }
+
+    fn ancestor(&self, name: &Token, distance: usize) -> RuntimeResult<Rc<RefCell<Environment>>> {
+        let mut environment = Rc::new(RefCell::new(self.clone()));
+        for _ in 0..distance {
+            environment = match &Rc::clone(&environment).borrow().outer_scope {
+                Some(e) => Rc::clone(e),
+                None => return Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+            };
+        }
+        Ok(environment)
     }
 }

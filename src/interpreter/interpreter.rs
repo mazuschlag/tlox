@@ -5,41 +5,30 @@ use crate::lexer::token::{Token, TokenType};
 use crate::interpreter::environment::Environment;
 use crate::interpreter::function::Function;
 use crate::lexer::literal::Literal;
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Interpreter {
-    pub globals: Environment,
-    pub environments: Vec<Environment>,
-    locals: HashMap<Token, usize>,
-    return_value: Literal,
-    current_depth: usize
+    pub environment: Rc<RefCell<Environment>>,
+    pub globals: Rc<RefCell<Environment>>,
+    return_value: Literal
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
 
 impl Interpreter {
     pub fn new() -> Interpreter {
-        let globals =  Environment::new(0);
-        let environments = Vec::new();
-        let locals = HashMap::new();
+        let globals =  Rc::new(RefCell::new(Environment::new(None)));
+        let environment = Rc::clone(&globals);
         let return_value = Literal::Nothing;
-        let current_depth = 0;
         Interpreter {
             globals,
-            environments,
-            locals,
-            return_value,
-            current_depth
+            environment,
+            return_value
         }
     }
 
-    pub fn resolve(&mut self, name: &Token, depth: usize) {
-        self.locals.insert(name.clone(), depth);
-    }
-
     pub fn interpret(&mut self, program: &Declarations) {
-        dbg!(&self.locals);
-        println!("");
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -87,39 +76,30 @@ impl Interpreter {
             Expr::Literal(Literal::Nothing) => Literal::Nothing,
             _ => self.visit_expr(initializer)?
         };
-
-        if self.current_depth > 0 {
-            self.environments[self.current_depth-1].define(name.lexeme.clone(), value);
-        } else {
-            self.globals.define(name.lexeme.clone(), value)
-        }
-        Ok(())
+        self.environment.borrow_mut().define(name.lexeme.clone(), value);
+        return Ok(())
     }
 
     pub fn visit_block_stmt(&mut self, statements: &Declarations, environment: Option<Environment>) -> RuntimeResult<()> {
         if self.return_value != Literal::Nothing {
             return Ok(())
         }
-
-        match environment {
-            Some(env) => self.environments.push(env),
-            None => {
-                self.environments.push(Environment::new(self.environments.len()));
-            }
-        }
-        self.current_depth += 1;
-
+        let previous = Rc::clone(&self.environment);
+        self.environment = match environment {
+            Some(env) => Rc::new(RefCell::new(env)),
+            None => Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&self.environment)))))
+        };
         for statement in statements {
             if let Some(err) = self.visit_stmt(statement).err() {
-                self.current_depth -= 1;
+                self.environment = previous;
                 return Err(err)
             }
             if self.return_value != Literal::Nothing {
-                self.current_depth -= 1;
+                self.environment = previous;
                 return Ok(())
             }
         }
-        self.current_depth -= 1;
+        self.environment = previous;
         Ok(())
     }
 
@@ -134,7 +114,7 @@ impl Interpreter {
         if let Some(else_branch) = else_branch {
             return self.visit_stmt(else_branch)
         }
-        Ok(())
+        return Ok(())
     }
 
     fn visit_while_stmt(&mut self, condition: &Expr, body: &Stmt) -> RuntimeResult<()> {
@@ -150,12 +130,8 @@ impl Interpreter {
     }
 
     fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<()> {
-        let function = Function::new(Some(name.clone()), params.clone(), body.clone());
-        if self.current_depth > 0 {
-            self.environments[self.current_depth-1].define(name.lexeme.clone(), Literal::Fun(function));
-        } else {
-            self.globals.define(name.lexeme.clone(), Literal::Fun(function));
-        }
+        let function = Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment);
+        self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
         Ok(())
     }
 
@@ -185,39 +161,12 @@ impl Interpreter {
 
     fn visit_assign_expr(&mut self, name: &Token, initializer: &Expr) -> RuntimeResult<Literal> {
         let value = self.visit_expr(initializer)?;
-        let distance = self.locals.get(&name);
-        match distance {
-            Some(d) => {
-                let depth = self.environments.len() - *d;
-                self.environments[depth].assign(name, value.clone());
-                Ok(value)
-            },
-            None => {
-                if self.globals.assign(name, value.clone()) {
-                    return Ok(value)
-                }
-                Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
-            }
-        }
+        self.environment.borrow_mut().assign(name, value.clone())?;
+        Ok(value)
     }
 
     fn visit_var_expr(&self, name: &Token) -> RuntimeResult<Literal> {
-        self.look_up_variable(name)
-    }
-
-    fn look_up_variable(&self, name: &Token) -> RuntimeResult<Literal> {
-        let distance = self.locals.get(name);
-        dbg!(&name);
-        dbg!(distance);
-        dbg!(&self.environments);
-        println!("");
-        match distance {
-            Some(d) => {
-                let depth = self.environments.len() - *d;
-                self.environments[depth].get(name, &self.environments)
-            },
-            None => self.globals.get(name, &self.environments)
-        }
+        self.environment.borrow().get(name)
     }
 
     fn visit_binary_expr(&mut self, left: &Expr, operator: &Token, right: &Expr) -> RuntimeResult<Literal> {
@@ -299,7 +248,7 @@ impl Interpreter {
     }
 
     fn visit_lambda_expr(&self, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<Literal> {
-        let function = Function::new(None, params.clone(), body.clone());
+        let function = Function::new(None, params.clone(), body.clone(), &self.environment);
         Ok(Literal::Fun(function))
     }
 

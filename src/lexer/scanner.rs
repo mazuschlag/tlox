@@ -14,6 +14,7 @@ pub struct Scanner<'a> {
     tokens: Vec<Token>,
     current_token: String,
     current_kind: Kind,
+    current_token_number: u32,
     line: u32,
     errors: Vec<String>
 }
@@ -25,6 +26,7 @@ impl<'a> Scanner<'a> {
             tokens: Vec::new(),
             current_token: String::new(),
             current_kind: Kind::Nothing,
+            current_token_number: 0,
             line: 1,
             errors: Vec::new()
         }
@@ -35,7 +37,7 @@ impl<'a> Scanner<'a> {
             self.scan_token(c);
         }
         self.add_saved_token('\0');
-        self.tokens.push(Token::new(TokenType::Eof, String::new(), self.line));
+        self.tokens.push(Token::new(TokenType::Eof, String::new(), self.line, self.current_token_number));
         &self.tokens
     }
 
@@ -157,9 +159,10 @@ impl<'a> Scanner<'a> {
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.tokens.push(Token::new(token_type, self.current_token.to_owned(), self.line));
+        self.tokens.push(Token::new(token_type, self.current_token.to_owned(), self.line, self.current_token_number));
         self.current_token = String::new();
         self.current_kind = Kind::Nothing;
+        self.current_token_number += 1;
     }
 
     fn advance(&mut self, c: char) {

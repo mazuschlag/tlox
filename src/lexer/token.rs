@@ -59,21 +59,23 @@ impl fmt::Display for TokenType {
 pub struct Token {
     pub typ: TokenType,
     pub lexeme: String,
-    pub line: u32
+    pub line: u32,
+    pub number: u32
 }
 
 impl Token {
-    pub fn new(typ: TokenType, lexeme: String, line: u32) -> Token {
+    pub fn new(typ: TokenType, lexeme: String, line: u32, number: u32) -> Token {
         Token {
             typ,
             lexeme,
-            line
+            line,
+            number
         }
     }
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "{} {}", self.typ, self.lexeme)
+       write!(f, "{} {} {}", self.typ, self.lexeme, self.number)
     }
 }

@@ -37,7 +37,6 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, program: &Declarations) {
-        dbg!(&self.locals);
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -72,8 +71,8 @@ impl Interpreter {
         if self.return_value != Literal::Nothing {
             return Ok(())
         }
-        let _ = self.visit_expr(expr)?;
-        //println!("{}", value);
+        let value = self.visit_expr(expr)?;
+        println!("{}", value);
         Ok(())
     }
 

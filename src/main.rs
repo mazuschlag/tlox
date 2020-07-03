@@ -52,7 +52,6 @@ fn run(interpreter: &mut Interpreter, source: &str, is_repl: bool) {
         return
     }
     let program = parser.statements;
-    dbg!(&program);
     let mut resolver = Resolver::new(interpreter);
     match resolver.resolve(&program) {
         Ok(()) => interpreter.interpret(&program),

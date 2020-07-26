@@ -38,7 +38,8 @@ impl<'a> Resolver<'a> {
             Stmt::Print(expr) => self.visit_print_stmt(expr),
             Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value),
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
-            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body)
+            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
+            Stmt::Class(name, _) => self.visit_class_stmt(name)
         }
     }
 
@@ -93,6 +94,12 @@ impl<'a> Resolver<'a> {
         self.declare(name);
         self.define(name);
         self.resolve_function(params, body)
+    }
+
+    fn visit_class_stmt(&mut self, name: &Token) -> ResolverError {
+        self.declare(name);
+        self.define(name);
+        Ok(())
     }
 
     fn visit_expr(&mut self, expr: &Expr) -> ResolverError {

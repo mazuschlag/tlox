@@ -39,6 +39,9 @@ impl<'a> Parser<'a> {
         if self.matches(&[TokenType::Var]) {
             return self.var_declaration()
         }
+        if self.matches(&[TokenType::Class]) {
+            return self.class_declaration();
+        }
         if self.matches(&[TokenType::Fun]) {
             return self.function("function")
         }
@@ -53,6 +56,17 @@ impl<'a> Parser<'a> {
         };
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Var(name, initializer))
+    }
+
+    fn class_declaration(&mut self) -> ParseResult<Stmt> {
+        let name = self.consume(TokenType::Identifier, "Expect class name.")?;
+        self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
+        let mut methods = Vec::new();
+        while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            methods.push(self.function("method")?);
+        }
+        self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
+        Ok(Stmt::Class(name, methods))
     }
 
     fn function(&mut self, kind: &str) -> ParseResult<Stmt> {

@@ -3,6 +3,7 @@ use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::{runtime_report, RuntimeError};
 use crate::lexer::token::{Token, TokenType};
 use crate::interpreter::environment::Environment;
+use crate::interpreter::class::Class;
 use crate::interpreter::function::Function;
 use crate::lexer::literal::Literal;
 use std::cell::RefCell;
@@ -54,7 +55,8 @@ impl Interpreter {
             Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch),
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
             Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
-            Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value)
+            Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value),
+            Stmt::Class(name, methods) => self.visit_class_stmt(name, methods)
         }?;
         Ok(())
     }
@@ -150,6 +152,13 @@ impl Interpreter {
             _ => self.visit_expr(value)?
         };
         Ok(())
+    }
+
+    #[allow(unused_variables)]
+    fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> RuntimeResult<()> {
+        self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Nothing);
+        let klass = Literal::Class(Class::new(name.lexeme.clone()));
+        self.environment.borrow_mut().assign(name, klass)
     }
 
     fn visit_expr(&mut self, expr: &Expr) -> RuntimeResult<Literal> {
@@ -258,7 +267,10 @@ impl Interpreter {
                 let value = self.return_value.clone();
                 self.return_value = Literal::Nothing;
                 return Ok(value)
-            }
+            },
+            Literal::Class(class) => {
+                class.call(self)
+            },
             _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),
         }
     }

@@ -10,7 +10,8 @@ pub enum Stmt {
     If(Expression, Box<Stmt>, Box<Option<Stmt>>),
     While(Expression, Box<Stmt>),
     Function(Token, Vec<Token>, Declarations),
-    Return(Token, Expression)
+    Return(Token, Expression),
+    Class(Token, Vec<Stmt>)
 }
 
 pub type Declarations = Vec<Stmt>;

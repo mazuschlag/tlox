@@ -38,6 +38,7 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, program: &Declarations) {
+        dbg!(program);
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -172,7 +173,9 @@ impl Interpreter {
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, right),
             Expr::Call(callee, right_paren, arguments) => self.visit_call_expr(callee, right_paren, arguments),
             Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
-            Expr::Literal(value) => self.visit_literal(value.clone())
+            Expr::Get(object, name) => self.visit_get_expr(object, name),
+            Expr::Set(object, name,value) => self.visit_set_expr(object, name, value),
+            Expr::Literal(value) => self.visit_literal(value.clone()) // <--- this clone is creating a new copy of the instance, which does not share the same fields
         }
     }
 
@@ -271,13 +274,35 @@ impl Interpreter {
             Literal::Class(class) => {
                 class.call(self)
             },
-            _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes")),
+            _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes.")),
         }
     }
 
     fn visit_lambda_expr(&self, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<Literal> {
         let function = Function::new(None, params.clone(), body.clone(), &self.environment);
         Ok(Literal::Fun(function))
+    }
+
+    fn visit_get_expr(&mut self, expr: &Expr, name: &Token) -> RuntimeResult<Literal> {
+        let object = self.visit_expr(expr)?;
+        if let Literal::Instance(instance) = object {
+            dbg!(&instance);
+            return instance.get(name)
+        }
+        Err(RuntimeError::new(name.clone(), "Only instances have properties."))
+    }
+
+    fn visit_set_expr(&mut self, left: &Expr, name: &Token, right: &Expr) -> RuntimeResult<Literal> {
+        let object = self.visit_expr(left)?;
+        if let Literal::Instance(mut instance) = object {
+            let value = self.visit_expr(right)?;
+            let result = instance.set(name, value)?;
+            dbg!(&result);
+            dbg!(&instance);
+            dbg!(self.environment.borrow());
+            return Ok(result);
+        }
+        Err(RuntimeError::new(name.clone(), "Only instances have properties."))
     }
 
     fn visit_literal(&self, value: Literal) -> RuntimeResult<Literal> {

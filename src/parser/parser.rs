@@ -236,10 +236,11 @@ impl<'a> Parser<'a> {
         let expr = self.or()?;
         if self.matches(&[TokenType::Equal]) {
             let value = self.assignment()?;
-            if let Expr::Variable(name) = *expr {
-                return Ok(Box::new(Expr::Assign(name.clone(), value)))
+            match *expr {
+                Expr::Variable(name) => return Ok(Box::new(Expr::Assign(name.clone(), value))),
+                Expr::Get(object, name) => return Ok(Box::new(Expr::Set(object.clone(), name.clone(), value))),
+                _ => return Err(self.parse_error("Invalid assignment target."))
             }
-            return Err(self.parse_error("Invalid assignment target."))
         }
         Ok(expr)
     }
@@ -329,6 +330,9 @@ impl<'a> Parser<'a> {
         loop {
             if self.matches(&[TokenType::LeftParen]) {
                 expr = self.finish_call(expr)?;
+            } else if self.matches(&[TokenType::Dot]) {
+                let name = self.consume(TokenType::Identifier, "Expect property name after '.''.")?;
+                expr = Box::new(Expr::Get(expr, name));
             } else {
                 break;
             }

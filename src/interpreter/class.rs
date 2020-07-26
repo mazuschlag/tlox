@@ -15,7 +15,8 @@ impl Class {
             arity: 0
         }
     }
-    pub fn call(&self, interpreter: &mut Interpreter) -> RuntimeResult<Literal> {
+
+    pub fn call(self, _interpreter: &mut Interpreter) -> RuntimeResult<Literal> {
         Ok(Literal::Instance(Instance::new(self)))
     }
 }

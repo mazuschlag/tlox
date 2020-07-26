@@ -113,6 +113,8 @@ impl<'a> Resolver<'a> {
             Expr::Unary(_, right) => self.visit_unary_expr(right),
             Expr::Call(callee, _, arguments) => self.visit_call_expr(callee, arguments),
             Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
+            Expr::Get(object, _) => self.visit_get_expr(object),
+            Expr::Set(object, _, value) => self.visit_set_expr(object, value),
             Expr::Literal(_) => self.visit_literal()
         }
     }
@@ -173,6 +175,16 @@ impl<'a> Resolver<'a> {
         }
         self.resolve(body)?;
         self.end_scope();
+        Ok(())
+    }
+
+    fn visit_get_expr(&mut self, object: &Expr) -> ResolverError {
+        self.visit_expr(object)
+    }
+
+    fn visit_set_expr(&mut self, object: &Expr, value: &Expr) -> ResolverError {
+        self.visit_expr(value)?;
+        self.visit_expr(object)?;
         Ok(())
     }
 

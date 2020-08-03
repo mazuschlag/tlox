@@ -2,6 +2,8 @@ use crate::interpreter::interpreter::{Interpreter, RuntimeResult};
 use crate::interpreter::instance::Instance;
 use crate::lexer::literal::Literal;
 use std::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Class {
     pub name: String,
@@ -17,7 +19,7 @@ impl Class {
     }
 
     pub fn call(self, _interpreter: &mut Interpreter) -> RuntimeResult<Literal> {
-        Ok(Literal::Instance(Instance::new(self)))
+        Ok(Literal::Instance(Rc::new(RefCell::new(Instance::new(self)))))
     }
 }
 

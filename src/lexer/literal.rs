@@ -1,4 +1,6 @@
 use std::fmt;
+use std::cell::RefCell;
+use std::rc::Rc;
 use crate::interpreter::function::Function;
 use crate::interpreter::class::Class;
 use crate::interpreter::instance::Instance;
@@ -9,7 +11,7 @@ pub enum Literal {
     Bool(bool),
     Fun(Function),
     Class(Class),
-    Instance(Instance),
+    Instance(Rc<RefCell<Instance>>),
     Nothing
 }
 
@@ -21,7 +23,7 @@ impl fmt::Display for Literal {
             Literal::Bool(b) => write!(f, "{}", b),
             Literal::Fun(function) => write!(f, "{}", function.to_string()),
             Literal::Class(class) => write!(f, "{}", class.to_string()),
-            Literal::Instance(instance) => write!(f, "{}", instance.to_string()),
+            Literal::Instance(instance) => write!(f, "{}", instance.borrow().to_string()),
             Literal::Nothing => write!(f, "nil")
         }
     }

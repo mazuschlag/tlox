@@ -38,7 +38,6 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, program: &Declarations) {
-        dbg!(program);
         for stmt in program {
             let result = self.visit_stmt(stmt).map_err(|err| runtime_report(err)).err();
             if let Some(e) = result {
@@ -175,9 +174,7 @@ impl Interpreter {
             Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
             Expr::Get(object, name) => self.visit_get_expr(object, name),
             Expr::Set(object, name,value) => self.visit_set_expr(object, name, value),
-            Expr::Literal(value) => self.visit_literal(value.clone()) // <--- this clone is creating a new copy of the instance, which does not share the same fields
-            // Option 1: store the name of the object in the object, and pass that as the value to replace the old object with the new one in the environment
-            // Option 2: re-write so that Interpreter doesn't borrow itself so much, and clone stuff for loops/when you need to borrow
+            Expr::Literal(value) => self.visit_literal(value.clone())
         }
     }
 
@@ -288,20 +285,16 @@ impl Interpreter {
     fn visit_get_expr(&mut self, expr: &Expr, name: &Token) -> RuntimeResult<Literal> {
         let object = self.visit_expr(expr)?;
         if let Literal::Instance(instance) = object {
-            dbg!(&instance);
-            return instance.get(name)
+            return instance.borrow().get(name)
         }
         Err(RuntimeError::new(name.clone(), "Only instances have properties."))
     }
 
     fn visit_set_expr(&mut self, left: &Expr, name: &Token, right: &Expr) -> RuntimeResult<Literal> {
         let object = self.visit_expr(left)?;
-        if let Literal::Instance(mut instance) = object {
+        if let Literal::Instance(instance) = object {
             let value = self.visit_expr(right)?;
-            let result = instance.set(name, value)?;
-            dbg!(&result);
-            dbg!(&instance);
-            dbg!(self.environment.borrow());
+            let result = instance.borrow_mut().set(name, value)?;
             return Ok(result);
         }
         Err(RuntimeError::new(name.clone(), "Only instances have properties."))

@@ -8,17 +8,27 @@ use std::collections::HashMap;
 
 pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
-    scopes: Vec<HashMap<String, bool>>
+    scopes: Vec<HashMap<String, bool>>,
+    current_function: FunctionType
 }
 
 type ResolverError = Result<(), String>;
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum FunctionType {
+    Function,
+    Method,
+    NotAFunction
+}
+
 impl<'a> Resolver<'a> {
     pub fn new(interpreter: &mut Interpreter) -> Resolver {
         let scopes = Vec::new();
+        let current_function = FunctionType::NotAFunction;
         Resolver {
             interpreter,
-            scopes
+            scopes,
+            current_function
         }
     }
 
@@ -39,7 +49,7 @@ impl<'a> Resolver<'a> {
             Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value),
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
             Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
-            Stmt::Class(name, _) => self.visit_class_stmt(name)
+            Stmt::Class(name, methods) => self.visit_class_stmt(name, methods)
         }
     }
 
@@ -51,7 +61,7 @@ impl<'a> Resolver<'a> {
     }
     
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Expr) -> ResolverError {
-        self.declare(name);
+        self.declare(name)?;
         match initializer {
             Expr::Literal(Literal::Nothing) => Ok(()),
             _ => self.visit_expr(initializer)
@@ -77,8 +87,10 @@ impl<'a> Resolver<'a> {
         self.visit_expr(expr)
     }
 
-    #[allow(unused_variables)]
     fn visit_return_stmt(&mut self, keyword: &Token, value: &Expr) -> ResolverError {
+        if self.current_function == FunctionType::NotAFunction {
+            return Err(error(keyword, "Cannot return from top-level code."))
+        }
         match value {
             Expr::Literal(Literal::Nothing) => Ok(()),
             _ => self.visit_expr(value)
@@ -91,14 +103,20 @@ impl<'a> Resolver<'a> {
     }
 
     fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Declarations) -> ResolverError {
-        self.declare(name);
+        self.declare(name)?;
         self.define(name);
-        self.resolve_function(params, body)
+        self.resolve_function(params, body, FunctionType::Function)
     }
 
-    fn visit_class_stmt(&mut self, name: &Token) -> ResolverError {
-        self.declare(name);
+    fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> ResolverError {
+        self.declare(name)?;
         self.define(name);
+        for method in methods {
+            if let Stmt::Function(_, params, body) = method {
+                let declaration = FunctionType::Method;
+                return self.resolve_function(params, body, declaration)
+            }
+        }
         Ok(())
     }
 
@@ -122,7 +140,7 @@ impl<'a> Resolver<'a> {
     fn visit_variable_expr(&mut self, name: &Token) -> ResolverError {
         if let Some(scope) = self.scopes.last() {
             if let Some(false) = scope.get(&name.lexeme) {
-                return Err(error(name, "Cannot read local variable in its own initializer"))
+                return Err(error(name, "Cannot read local variable in its own initializer."))
             }
         }
         self.resolve_local(name);
@@ -170,7 +188,7 @@ impl<'a> Resolver<'a> {
     fn visit_lambda_expr(&mut self, params: &Vec<Token>, body: &Declarations) -> ResolverError {
         self.begin_scope();
         for param in params {
-            self.declare(param);
+            self.declare(param)?;
             self.define(param);
         }
         self.resolve(body)?;
@@ -192,10 +210,14 @@ impl<'a> Resolver<'a> {
         Ok(())
     }
 
-    fn declare(&mut self, name: &Token) {
+    fn declare(&mut self, name: &Token) -> ResolverError {
         if let Some(scope) = self.scopes.last_mut() {
+            if scope.contains_key(&name.lexeme) {
+                return Err(error(name, "Variable with this name already declared in this scope."))
+            }
             scope.insert(name.lexeme.clone(), false);
         }
+        Ok(())
     }
 
     fn define(&mut self, name: &Token) {
@@ -222,14 +244,17 @@ impl<'a> Resolver<'a> {
         }   
     }
 
-    fn resolve_function(&mut self, params: &Vec<Token>, body: &Declarations) -> ResolverError {
+    fn resolve_function(&mut self, params: &Vec<Token>, body: &Declarations, typ: FunctionType) -> ResolverError {
+        let enclosing_function = self.current_function;
+        self.current_function = typ;
         self.begin_scope();
         for param in params {
-            self.declare(param);
+            self.declare(param)?;
             self.define(param);
         }
         self.resolve(body)?;
         self.end_scope();
+        self.current_function = enclosing_function;
         Ok(())
     }
 

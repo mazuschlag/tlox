@@ -23,10 +23,13 @@ impl Instance {
     }
 
     pub fn get(&self, name: &Token) -> RuntimeResult<Literal> {
-        match self.fields.get(&name.lexeme) {
-            Some(value) => Ok(value.clone()),
-            None => Err(RuntimeError::new(name.clone(), &format!("Undefined property '{}'.", name.lexeme)))
+        if let Some(value) = self.fields.get(&name.lexeme) {
+            return Ok(value.clone())
         }
+        if let Some(method) = self.class.borrow().find_method(&name.lexeme) {
+            return Ok(method)
+        }
+        Err(RuntimeError::new(name.clone(), &format!("Undefined property '{}'.", name.lexeme)))
     }
 
     pub fn set(&mut self, name: &Token, value: Literal) -> RuntimeResult<Literal> {

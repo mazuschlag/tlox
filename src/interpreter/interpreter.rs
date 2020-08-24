@@ -154,10 +154,16 @@ impl Interpreter {
         Ok(())
     }
 
-    #[allow(unused_variables)]
     fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> RuntimeResult<()> {
         self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Nothing);
-        let klass = Literal::Class(Class::new(name.lexeme.clone()));
+        let mut class_methods = HashMap::new();
+        for method in methods {
+            if let Stmt::Function(name, params, body) = method {
+                let function = Literal::Fun(Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment));
+                class_methods.insert(name.lexeme.clone(), function);
+            }
+        }
+        let klass = Literal::Class(Class::new(name.lexeme.clone(), class_methods));
         self.environment.borrow_mut().assign(name, klass)
     }
 

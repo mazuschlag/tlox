@@ -9,7 +9,8 @@ use std::collections::HashMap;
 pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     scopes: Vec<HashMap<String, bool>>,
-    current_function: FunctionType
+    current_function: FunctionType,
+    current_class: ClassType
 }
 
 type ResolverError = Result<(), String>;
@@ -21,14 +22,22 @@ enum FunctionType {
     NotAFunction
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum ClassType {
+    NotAClass,
+    Class
+}
+
 impl<'a> Resolver<'a> {
     pub fn new(interpreter: &mut Interpreter) -> Resolver {
         let scopes = Vec::new();
         let current_function = FunctionType::NotAFunction;
+        let current_class = ClassType::NotAClass;
         Resolver {
             interpreter,
             scopes,
-            current_function
+            current_function,
+            current_class
         }
     }
 
@@ -109,6 +118,8 @@ impl<'a> Resolver<'a> {
     }
 
     fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> ResolverError {
+        let enclosing_class = self.current_class;
+        self.current_class = ClassType::Class;
         self.declare(name)?;
         self.define(name);
         self.begin_scope();
@@ -122,6 +133,7 @@ impl<'a> Resolver<'a> {
             }
         }
         self.end_scope();
+        self.current_class = enclosing_class;
         Ok(())
     }
 
@@ -213,6 +225,9 @@ impl<'a> Resolver<'a> {
     }
 
     fn visit_this_expr(&mut self, name: &Token) -> ResolverError {
+        if self.current_class == ClassType::NotAClass {
+            return Err(error(name, "Cannot use 'this' outside of a class."))
+        }
         self.resolve_local(name);
         Ok(())
     }

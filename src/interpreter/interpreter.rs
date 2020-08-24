@@ -180,6 +180,7 @@ impl Interpreter {
             Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
             Expr::Get(object, name) => self.visit_get_expr(object, name),
             Expr::Set(object, name,value) => self.visit_set_expr(object, name, value),
+            Expr::This(name) => self.visit_this_expr(name),
             Expr::Literal(value) => self.visit_literal(value.clone())
         }
     }
@@ -304,6 +305,14 @@ impl Interpreter {
             return Ok(result);
         }
         Err(RuntimeError::new(name.clone(), "Only instances have properties."))
+    }
+
+    fn visit_this_expr(&mut self, name: &Token) -> RuntimeResult<Literal> {
+        let distance = self.locals.get(name);
+        match distance {
+            Some(d) => self.environment.borrow().get_at(name, *d),
+            None => self.globals.borrow().get(name)
+        }
     }
 
     fn visit_literal(&self, value: Literal) -> RuntimeResult<Literal> {

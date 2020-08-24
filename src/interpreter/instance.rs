@@ -26,8 +26,8 @@ impl Instance {
         if let Some(value) = self.fields.get(&name.lexeme) {
             return Ok(value.clone())
         }
-        if let Some(method) = self.class.borrow().find_method(&name.lexeme) {
-            return Ok(method)
+        if let Some(Literal::Fun(method)) = self.class.borrow().find_method(&name.lexeme) {
+            return Ok(method.bind(Rc::new(RefCell::new(self.clone())))) // this seems dangerous
         }
         Err(RuntimeError::new(name.clone(), &format!("Undefined property '{}'.", name.lexeme)))
     }

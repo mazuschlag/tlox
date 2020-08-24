@@ -15,7 +15,8 @@ pub enum Expr {
     Call(Expression, Token, Vec<Box<Expr>>),
     Lambda(Vec<Token>, Declarations),
     Get(Expression, Token),
-    Set(Expression, Token, Expression)
+    Set(Expression, Token, Expression),
+    This(Token)
 }
 
 pub type Expression = Box<Expr>;

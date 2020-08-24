@@ -1,5 +1,6 @@
 use crate::interpreter::interpreter::{Interpreter, RuntimeResult};
 use crate::interpreter::environment::Environment;
+use crate::interpreter::instance::Instance;
 use crate::parser::statement::Stmt;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::Token;
@@ -36,6 +37,12 @@ impl Function {
         }
         interpreter.visit_block_stmt(&self.body, Some(env))?;
         Ok(())
+    }
+
+    pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Literal {
+        let mut env = Environment::new(Some(Rc::clone(&self.closure)));
+        env.define("this".to_string(), Literal::Instance(instance));
+        Literal::Fun(Function::new(self.name.clone(), self.params.clone(), self.body.clone(), &Rc::new(RefCell::new(env))))
     }
 }
 

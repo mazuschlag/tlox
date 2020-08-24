@@ -111,12 +111,17 @@ impl<'a> Resolver<'a> {
     fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> ResolverError {
         self.declare(name)?;
         self.define(name);
+        self.begin_scope();
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.insert("this".to_string(), true);
+        }
         for method in methods {
             if let Stmt::Function(_, params, body) = method {
                 let declaration = FunctionType::Method;
-                return self.resolve_function(params, body, declaration)
+                self.resolve_function(params, body, declaration)?;
             }
         }
+        self.end_scope();
         Ok(())
     }
 
@@ -133,6 +138,7 @@ impl<'a> Resolver<'a> {
             Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
             Expr::Get(object, _) => self.visit_get_expr(object),
             Expr::Set(object, _, value) => self.visit_set_expr(object, value),
+            Expr::This(name) => self.visit_this_expr(name),
             Expr::Literal(_) => self.visit_literal()
         }
     }
@@ -203,6 +209,11 @@ impl<'a> Resolver<'a> {
     fn visit_set_expr(&mut self, object: &Expr, value: &Expr) -> ResolverError {
         self.visit_expr(value)?;
         self.visit_expr(object)?;
+        Ok(())
+    }
+
+    fn visit_this_expr(&mut self, name: &Token) -> ResolverError {
+        self.resolve_local(name);
         Ok(())
     }
 

@@ -410,6 +410,10 @@ impl<'a> Parser<'a> {
             }
         }
 
+        if self.matches(&[TokenType::This]) {
+            return Ok(Box::new(Expr::This(self.previous())))
+        }
+
         if self.matches(&[TokenType::Identifier]) {
             return Ok(Box::new(Expr::Variable(self.previous())))
         }

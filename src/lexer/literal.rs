@@ -1,9 +1,9 @@
-use std::fmt;
-use std::cell::RefCell;
-use std::rc::Rc;
-use crate::interpreter::function::Function;
 use crate::interpreter::class::Class;
+use crate::interpreter::function::Function;
 use crate::interpreter::instance::Instance;
+use std::cell::RefCell;
+use std::fmt;
+use std::rc::Rc;
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Str(String),
@@ -12,7 +12,7 @@ pub enum Literal {
     Fun(Function),
     Class(Class),
     Instance(Rc<RefCell<Instance>>),
-    Nothing
+    Nothing,
 }
 
 impl fmt::Display for Literal {
@@ -24,7 +24,7 @@ impl fmt::Display for Literal {
             Literal::Fun(function) => write!(f, "{}", function.to_string()),
             Literal::Class(class) => write!(f, "{}", class.to_string()),
             Literal::Instance(instance) => write!(f, "{}", instance.borrow().to_string()),
-            Literal::Nothing => write!(f, "nil")
+            Literal::Nothing => write!(f, "nil"),
         }
     }
 }

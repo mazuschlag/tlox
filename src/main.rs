@@ -1,22 +1,22 @@
-mod lexer;
-mod parser;
 mod error;
 mod interpreter;
+mod lexer;
+mod parser;
 
-use std::env;
-use std::fs::File;
-use std::io::{self, Read, BufRead, Write};
+use interpreter::interpreter::Interpreter;
 use lexer::scanner::Scanner;
 use parser::parser::Parser;
 use parser::resolver::Resolver;
-use interpreter::interpreter::Interpreter;
+use std::env;
+use std::fs::File;
+use std::io::{self, BufRead, Read, Write};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
     match args.len() {
         2 => run_file(&args[1]),
         1 => run_prompt(),
-        _ => println!("Usage: tlox [script]")
+        _ => println!("Usage: tlox [script]"),
     }
 }
 
@@ -36,8 +36,8 @@ fn run_prompt() {
             Ok(input) => {
                 run(&mut interpreter, &input, true);
                 new_line();
-            },
-            Err(error) => println!("Error reading line: {}", error)
+            }
+            Err(error) => println!("Error reading line: {}", error),
         }
     }
 }
@@ -48,16 +48,15 @@ fn run(interpreter: &mut Interpreter, source: &str, is_repl: bool) {
     let mut parser = Parser::new(tokens, is_repl);
     parser.parse();
     if parser.errors.len() > 0 {
-        parser.errors.iter().for_each(|err| { println!("{}", err) });
-        return
+        parser.errors.iter().for_each(|err| println!("{}", err));
+        return;
     }
     let program = parser.statements;
     let mut resolver = Resolver::new(interpreter);
     match resolver.resolve(&program) {
         Ok(()) => interpreter.interpret(&program),
-        Err(e) => println!("{}", e)
+        Err(e) => println!("{}", e),
     }
-   
 }
 
 fn new_line() {

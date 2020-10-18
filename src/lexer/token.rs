@@ -21,9 +21,9 @@ pub enum TokenType {
     BangEqual,
     Equal,
     EqualEqual,
-    Greater, 
+    Greater,
     GreaterEqual,
-    Less, 
+    Less,
     LessEqual,
     // Literals
     Identifier,
@@ -46,7 +46,7 @@ pub enum TokenType {
     True,
     Var,
     While,
-    Eof
+    Eof,
 }
 
 impl fmt::Display for TokenType {
@@ -60,7 +60,7 @@ pub struct Token {
     pub typ: TokenType,
     pub lexeme: String,
     pub line: u32,
-    pub number: u32
+    pub number: u32,
 }
 
 impl Token {
@@ -69,13 +69,13 @@ impl Token {
             typ,
             lexeme,
             line,
-            number
+            number,
         }
     }
 }
 
 impl fmt::Display for Token {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-       write!(f, "{} {} {}", self.typ, self.lexeme, self.number)
+        write!(f, "{} {} {}", self.typ, self.lexeme, self.number)
     }
 }

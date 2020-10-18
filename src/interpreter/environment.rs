@@ -1,9 +1,9 @@
-use crate::lexer::token::Token;
-use crate::lexer::literal::Literal;
-use crate::interpreter::interpreter::RuntimeResult;
 use crate::error::report::RuntimeError;
-use std::collections::HashMap;
+use crate::interpreter::interpreter::RuntimeResult;
+use crate::lexer::literal::Literal;
+use crate::lexer::token::Token;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 type Enclosing = Option<Rc<RefCell<Environment>>>;
@@ -11,7 +11,7 @@ type Enclosing = Option<Rc<RefCell<Environment>>>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     pub values: HashMap<String, Literal>,
-    outer_scope: Enclosing
+    outer_scope: Enclosing,
 }
 
 impl Environment {
@@ -19,7 +19,7 @@ impl Environment {
         let values = HashMap::new();
         Environment {
             values,
-            outer_scope
+            outer_scope,
         }
     }
 
@@ -32,7 +32,7 @@ impl Environment {
             Some(value) => Some(value.clone()),
             None => {
                 if let Some(enclosing) = &self.outer_scope {
-                    return enclosing.borrow().get(name)
+                    return enclosing.borrow().get(name);
                 }
                 None
             }
@@ -42,27 +42,38 @@ impl Environment {
     pub fn get_at(&self, name: &String, distance: usize) -> Option<Literal> {
         match self.ancestor(distance)?.borrow().values.get(name) {
             Some(value) => Some(value.clone()),
-            None => None
+            None => None,
         }
     }
 
     pub fn assign(&mut self, name: &Token, value: Literal) -> RuntimeResult<()> {
         if self.values.contains_key(&name.lexeme) {
             self.values.insert(name.lexeme.clone(), value);
-            return Ok(())
+            return Ok(());
         }
         if let Some(enclosing) = &self.outer_scope {
-            return enclosing.borrow_mut().assign(name, value)
+            return enclosing.borrow_mut().assign(name, value);
         }
-        Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+        Err(RuntimeError::new(
+            name.clone(),
+            &format!("Undefined variable '{}'.", name.lexeme),
+        ))
     }
 
-    pub fn assign_at(&mut self, name: &Token, value: Literal, distance: usize) -> RuntimeResult<()> {
+    pub fn assign_at(
+        &mut self,
+        name: &Token,
+        value: Literal,
+        distance: usize,
+    ) -> RuntimeResult<()> {
         if let Some(env) = self.ancestor(distance) {
             env.borrow_mut().values.insert(name.lexeme.clone(), value);
-            return Ok(())
+            return Ok(());
         }
-        return Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+        return Err(RuntimeError::new(
+            name.clone(),
+            &format!("Undefined variable '{}'.", name.lexeme),
+        ));
     }
 
     fn ancestor(&self, distance: usize) -> Option<Rc<RefCell<Environment>>> {
@@ -70,7 +81,7 @@ impl Environment {
         for _ in 0..distance {
             environment = match &Rc::clone(&environment).borrow().outer_scope {
                 Some(e) => Rc::clone(e),
-                None => return None
+                None => return None,
             };
         }
         Some(environment)

@@ -6,7 +6,7 @@ enum Kind {
     Comment,
     MultiComment,
     Identifier,
-    Nothing
+    Nothing,
 }
 #[derive(Debug)]
 pub struct Scanner<'a> {
@@ -16,7 +16,7 @@ pub struct Scanner<'a> {
     current_kind: Kind,
     current_token_number: u32,
     line: u32,
-    errors: Vec<String>
+    errors: Vec<String>,
 }
 
 impl<'a> Scanner<'a> {
@@ -28,7 +28,7 @@ impl<'a> Scanner<'a> {
             current_kind: Kind::Nothing,
             current_token_number: 0,
             line: 1,
-            errors: Vec::new()
+            errors: Vec::new(),
         }
     }
 
@@ -37,7 +37,12 @@ impl<'a> Scanner<'a> {
             self.scan_token(c);
         }
         self.add_saved_token('\0');
-        self.tokens.push(Token::new(TokenType::Eof, String::new(), self.line, self.current_token_number));
+        self.tokens.push(Token::new(
+            TokenType::Eof,
+            String::new(),
+            self.line,
+            self.current_token_number,
+        ));
         &self.tokens
     }
 
@@ -47,17 +52,17 @@ impl<'a> Scanner<'a> {
             Kind::MultiComment if !self.multi_comment_end(c) => return,
             Kind::Str => {
                 self.add_to_string(c);
-                return
-            },
-            Kind::Number if valid_digit(c) => { 
+                return;
+            }
+            Kind::Number if valid_digit(c) => {
                 self.add_to_number(c);
-                return
-            },
+                return;
+            }
             Kind::Identifier if valid_identifier(c) => {
                 self.add_to_identifier(c);
-                return
-            },
-            _ => ()
+                return;
+            }
+            _ => (),
         };
 
         match c {
@@ -85,7 +90,7 @@ impl<'a> Scanner<'a> {
             '"' => self.add_to_string(c),
             c if valid_digit(c) => self.add_to_number(c),
             c if valid_identifier(c) => self.add_to_identifier(c),
-            _ => self.add_error(self.line, "Unexpected character")
+            _ => self.add_error(self.line, "Unexpected character"),
         };
     }
 
@@ -103,12 +108,12 @@ impl<'a> Scanner<'a> {
     fn add_to_string(&mut self, c: char) {
         if self.current_kind == Kind::Nothing {
             self.current_kind = Kind::Str;
-            return
+            return;
         }
 
         if c == '"' {
             self.add_token(TokenType::Str);
-            return
+            return;
         }
 
         self.advance(c);
@@ -135,13 +140,17 @@ impl<'a> Scanner<'a> {
             Kind::Identifier => self.add_token(self.identifier_type()),
             Kind::Comment => return,
             Kind::MultiComment if self.current_token.as_str() != "*/" => return,
-            _ => ()
+            _ => (),
         };
 
         match self.current_token.as_str() {
             "/" if c != '/' && c != '*' => self.add_token(TokenType::Slash),
-            "*" if c != '/' && self.current_kind != Kind::MultiComment => self.add_token(TokenType::Star),
-            "*" if c != '/' && self.current_kind == Kind::MultiComment => self.current_token = String::new(),
+            "*" if c != '/' && self.current_kind != Kind::MultiComment => {
+                self.add_token(TokenType::Star)
+            }
+            "*" if c != '/' && self.current_kind == Kind::MultiComment => {
+                self.current_token = String::new()
+            }
             "=" if c != '=' => self.add_token(TokenType::Equal),
             "!" if c != '=' => self.add_token(TokenType::Bang),
             "<" if c != '=' => self.add_token(TokenType::Less),
@@ -154,12 +163,17 @@ impl<'a> Scanner<'a> {
             "/*" => self.add_comment(),
             "*/" => self.end_comment(),
             "" => (),
-            _ => ()
+            _ => (),
         };
     }
 
     fn add_token(&mut self, token_type: TokenType) {
-        self.tokens.push(Token::new(token_type, self.current_token.to_owned(), self.line, self.current_token_number));
+        self.tokens.push(Token::new(
+            token_type,
+            self.current_token.to_owned(),
+            self.line,
+            self.current_token_number,
+        ));
         self.current_token = String::new();
         self.current_kind = Kind::Nothing;
         self.current_token_number += 1;
@@ -187,7 +201,7 @@ impl<'a> Scanner<'a> {
             "true" => TokenType::True,
             "var" => TokenType::Var,
             "while" => TokenType::While,
-            _ => TokenType::Identifier
+            _ => TokenType::Identifier,
         }
     }
 
@@ -225,15 +239,15 @@ impl<'a> Scanner<'a> {
 
     fn multi_comment_end(&self, c: char) -> bool {
         if self.current_token.as_str() == "*/" {
-            return true
+            return true;
         }
 
         if self.current_token.as_str() == "*" && c == '/' {
-            return true
+            return true;
         }
 
         if c == '*' {
-            return true
+            return true;
         }
 
         false

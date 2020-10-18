@@ -1,5 +1,5 @@
-use crate::parser::expression::Expression;
 use crate::lexer::token::Token;
+use crate::parser::expression::Expression;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
@@ -11,7 +11,7 @@ pub enum Stmt {
     While(Expression, Box<Stmt>),
     Function(Token, Vec<Token>, Declarations),
     Return(Token, Expression),
-    Class(Token, Vec<Stmt>)
+    Class(Token, Vec<Stmt>),
 }
 
 pub type Declarations = Vec<Stmt>;

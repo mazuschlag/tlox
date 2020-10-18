@@ -1,4 +1,4 @@
-pub mod parser;
 pub mod expression;
-pub mod statement;
+pub mod parser;
 pub mod resolver;
+pub mod statement;

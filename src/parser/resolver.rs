@@ -1,16 +1,16 @@
-use crate::lexer::token::Token;
-use crate::lexer::literal::Literal;
-use crate::parser::expression::Expr;
-use crate::interpreter::interpreter::{Interpreter};
-use crate::parser::statement::{Stmt, Declarations};
 use crate::error::report::error;
+use crate::interpreter::interpreter::Interpreter;
+use crate::lexer::literal::Literal;
+use crate::lexer::token::Token;
+use crate::parser::expression::Expr;
+use crate::parser::statement::{Declarations, Stmt};
 use std::collections::HashMap;
 
 pub struct Resolver<'a> {
     interpreter: &'a mut Interpreter,
     scopes: Vec<HashMap<String, bool>>,
     current_function: FunctionType,
-    current_class: ClassType
+    current_class: ClassType,
 }
 
 type ResolverError = Result<(), String>;
@@ -20,13 +20,13 @@ enum FunctionType {
     Function,
     Method,
     Initializer,
-    NotAFunction
+    NotAFunction,
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum ClassType {
     NotAClass,
-    Class
+    Class,
 }
 
 impl<'a> Resolver<'a> {
@@ -38,7 +38,7 @@ impl<'a> Resolver<'a> {
             interpreter,
             scopes,
             current_function,
-            current_class
+            current_class,
         }
     }
 
@@ -54,12 +54,14 @@ impl<'a> Resolver<'a> {
             Stmt::Block(body) => self.visit_block_stmt(body),
             Stmt::Var(name, initializer) => self.visit_var_stmt(name, initializer),
             Stmt::Expression(expr) => self.visit_expression_stmt(expr),
-            Stmt::If(condition, then_branch, else_branch) => self.visit_if_stmt(condition, then_branch, else_branch),
+            Stmt::If(condition, then_branch, else_branch) => {
+                self.visit_if_stmt(condition, then_branch, else_branch)
+            }
             Stmt::Print(expr) => self.visit_print_stmt(expr),
             Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value),
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
             Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
-            Stmt::Class(name, methods) => self.visit_class_stmt(name, methods)
+            Stmt::Class(name, methods) => self.visit_class_stmt(name, methods),
         }
     }
 
@@ -69,12 +71,12 @@ impl<'a> Resolver<'a> {
         self.end_scope();
         Ok(())
     }
-    
+
     fn visit_var_stmt(&mut self, name: &Token, initializer: &Expr) -> ResolverError {
         self.declare(name)?;
         match initializer {
             Expr::Literal(Literal::Nothing) => Ok(()),
-            _ => self.visit_expr(initializer)
+            _ => self.visit_expr(initializer),
         }?;
         self.define(name);
         Ok(())
@@ -84,7 +86,12 @@ impl<'a> Resolver<'a> {
         self.visit_expr(expr)
     }
 
-    fn visit_if_stmt(&mut self, condition: &Expr, then_branch: &Stmt, else_branch: &Option<Stmt>) -> ResolverError {
+    fn visit_if_stmt(
+        &mut self,
+        condition: &Expr,
+        then_branch: &Stmt,
+        else_branch: &Option<Stmt>,
+    ) -> ResolverError {
         self.visit_expr(condition)?;
         self.visit_stmt(then_branch)?;
         if let Some(statement) = else_branch {
@@ -99,14 +106,14 @@ impl<'a> Resolver<'a> {
 
     fn visit_return_stmt(&mut self, keyword: &Token, value: &Expr) -> ResolverError {
         if self.current_function == FunctionType::NotAFunction {
-            return Err(error(keyword, "Cannot return from top-level code."))
+            return Err(error(keyword, "Cannot return from top-level code."));
         }
         if self.current_function == FunctionType::Initializer {
-            return Err(error(keyword, "Cannot return a value from an initializer."))
+            return Err(error(keyword, "Cannot return a value from an initializer."));
         }
         match value {
             Expr::Literal(Literal::Nothing) => Ok(()),
-            _ => self.visit_expr(value)
+            _ => self.visit_expr(value),
         }
     }
 
@@ -115,7 +122,12 @@ impl<'a> Resolver<'a> {
         self.visit_stmt(body)
     }
 
-    fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Declarations) -> ResolverError {
+    fn visit_function_stmt(
+        &mut self,
+        name: &Token,
+        params: &Vec<Token>,
+        body: &Declarations,
+    ) -> ResolverError {
         self.declare(name)?;
         self.define(name);
         self.resolve_function(params, body, FunctionType::Function)
@@ -159,14 +171,17 @@ impl<'a> Resolver<'a> {
             Expr::Get(object, _) => self.visit_get_expr(object),
             Expr::Set(object, _, value) => self.visit_set_expr(object, value),
             Expr::This(name) => self.visit_this_expr(name),
-            Expr::Literal(_) => self.visit_literal()
+            Expr::Literal(_) => self.visit_literal(),
         }
     }
 
     fn visit_variable_expr(&mut self, name: &Token) -> ResolverError {
         if let Some(scope) = self.scopes.last() {
             if let Some(false) = scope.get(&name.lexeme) {
-                return Err(error(name, "Cannot read local variable in its own initializer."))
+                return Err(error(
+                    name,
+                    "Cannot read local variable in its own initializer.",
+                ));
             }
         }
         self.resolve_local(name);
@@ -234,7 +249,7 @@ impl<'a> Resolver<'a> {
 
     fn visit_this_expr(&mut self, name: &Token) -> ResolverError {
         if self.current_class == ClassType::NotAClass {
-            return Err(error(name, "Cannot use 'this' outside of a class."))
+            return Err(error(name, "Cannot use 'this' outside of a class."));
         }
         self.resolve_local(name);
         Ok(())
@@ -247,7 +262,10 @@ impl<'a> Resolver<'a> {
     fn declare(&mut self, name: &Token) -> ResolverError {
         if let Some(scope) = self.scopes.last_mut() {
             if scope.contains_key(&name.lexeme) {
-                return Err(error(name, "Variable with this name already declared in this scope."))
+                return Err(error(
+                    name,
+                    "Variable with this name already declared in this scope.",
+                ));
             }
             scope.insert(name.lexeme.clone(), false);
         }
@@ -275,10 +293,15 @@ impl<'a> Resolver<'a> {
                     self.interpreter.resolve(name, self.scopes_depth() - i)
                 }
             }
-        }   
+        }
     }
 
-    fn resolve_function(&mut self, params: &Vec<Token>, body: &Declarations, typ: FunctionType) -> ResolverError {
+    fn resolve_function(
+        &mut self,
+        params: &Vec<Token>,
+        body: &Declarations,
+        typ: FunctionType,
+    ) -> ResolverError {
         let enclosing_function = self.current_function;
         self.current_function = typ;
         self.begin_scope();

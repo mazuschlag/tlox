@@ -1,35 +1,38 @@
-use crate::interpreter::interpreter::RuntimeResult;
 use crate::error::report::RuntimeError;
 use crate::interpreter::class::Class;
+use crate::interpreter::interpreter::RuntimeResult;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::Token;
-use std::fmt;
 use std::cell::RefCell;
-use std::rc::Rc;
 use std::collections::HashMap;
+use std::fmt;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Instance {
     class: Rc<RefCell<Class>>,
-    pub fields: HashMap<String, Literal>
+    pub fields: HashMap<String, Literal>,
 }
 
 impl Instance {
     pub fn new(class: Class) -> Instance {
         Instance {
             class: Rc::new(RefCell::new(class)),
-            fields: HashMap::new()
+            fields: HashMap::new(),
         }
     }
 
     pub fn get(&self, name: &Token) -> RuntimeResult<Literal> {
         if let Some(value) = self.fields.get(&name.lexeme) {
-            return Ok(value.clone())
+            return Ok(value.clone());
         }
         if let Some(Literal::Fun(method)) = self.class.borrow().find_method(&name.lexeme) {
-            return Ok(method.bind(Rc::new(RefCell::new(self.clone())))) // this seems dangerous
+            return Ok(method.bind(Rc::new(RefCell::new(self.clone())))); // this seems dangerous
         }
-        Err(RuntimeError::new(name.clone(), &format!("Undefined property '{}'.", name.lexeme)))
+        Err(RuntimeError::new(
+            name.clone(),
+            &format!("Undefined property '{}'.", name.lexeme),
+        ))
     }
 
     pub fn set(&mut self, name: &Token, value: Literal) -> RuntimeResult<Literal> {

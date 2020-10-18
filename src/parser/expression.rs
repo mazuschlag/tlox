@@ -1,5 +1,5 @@
-use crate::lexer::token::Token;
 use crate::lexer::literal::Literal;
+use crate::lexer::token::Token;
 use crate::parser::statement::Declarations;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -16,12 +16,12 @@ pub enum Expr {
     Lambda(Vec<Token>, Declarations),
     Get(Expression, Token),
     Set(Expression, Token, Expression),
-    This(Token)
+    This(Token),
 }
 
 pub type Expression = Box<Expr>;
 
-/* 
+/*
     Wrapper for printing AST in Lisp-like format
     Example use:
     use lexer::token::{Token, TokenType, Literal as TokenLiteral};
@@ -48,17 +48,19 @@ impl AstPrinter {
     pub fn print(&self, expr: &Expr) {
         println!("{}", self.visit(expr));
     }
-    
+
     fn visit(&self, expr: &Expr) -> String {
         match expr {
             Expr::Binary(left, operator, right) => self.visit_binary_expr(&left, &operator, &right),
             Expr::Ternary(left, middle, right) => self.visit_ternary_expr(&left, &middle, &right),
             Expr::Grouping(group) => self.visit_grouping_expr(&group),
             Expr::Literal(literal) => self.visit_literal_expr(literal),
-            Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
+            Expr::Logical(left, operator, right) => {
+                self.visit_logical_expr(&left, &operator, &right)
+            }
             Expr::Unary(operator, right) => self.visit_unary_expr(&operator, &right),
             Expr::Variable(name) => name.lexeme.clone(),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 
@@ -93,7 +95,7 @@ impl AstPrinter {
             Literal::Str(string) => format!("\"{}\"", string),
             Literal::Number(num) => format!("{}", num),
             Literal::Bool(boolean) => format!("{}", boolean),
-            _ => "null".to_owned()
+            _ => "null".to_owned(),
         }
     }
 
@@ -141,7 +143,6 @@ impl AstPrinter {
     rpn_printer.print(&expr);
 */
 
-
 pub struct RpnPrinter;
 
 impl RpnPrinter {
@@ -156,10 +157,12 @@ impl RpnPrinter {
             Expr::Ternary(left, middle, right) => self.visit_ternary_expr(&left, &middle, &right),
             Expr::Grouping(group) => self.visit_grouping_expr(&group),
             Expr::Literal(literal) => self.visit_literal_expr(literal),
-            Expr::Logical(left, operator, right) => self.visit_logical_expr(&left, &operator, &right),
+            Expr::Logical(left, operator, right) => {
+                self.visit_logical_expr(&left, &operator, &right)
+            }
             Expr::Unary(operator, right) => self.visit_unary_expr(&operator, &right),
             Expr::Variable(name) => name.lexeme.clone(),
-            _ => unimplemented!()
+            _ => unimplemented!(),
         }
     }
 
@@ -196,7 +199,7 @@ impl RpnPrinter {
             Literal::Str(string) => string.to_owned(),
             Literal::Number(num) => format!("{}", num),
             Literal::Bool(boolean) => format!("{}", boolean),
-            _ => "null".to_owned()
+            _ => "null".to_owned(),
         }
     }
 

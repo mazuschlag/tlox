@@ -14,11 +14,12 @@ pub struct Function {
     name: Option<Token>,
     params: Vec<Token>,
     body: Vec<Stmt>,
-    closure: Rc<RefCell<Environment>>
+    closure: Rc<RefCell<Environment>>,
+    is_initializer: bool
 }
 
 impl Function {
-    pub fn new(name: Option<Token>, params: Vec<Token>, body: Vec<Stmt>, parent: &Rc<RefCell<Environment>>) -> Function {
+    pub fn new(name: Option<Token>, params: Vec<Token>, body: Vec<Stmt>, parent: &Rc<RefCell<Environment>>, is_initializer: bool) -> Function {
         let arity = params.len();
         let closure = Rc::clone(parent);
         Function {
@@ -26,23 +27,30 @@ impl Function {
             name,
             params,
             body,
-            closure
+            closure,
+            is_initializer
         }
     }
     
-    pub fn call(&self, interpreter: &mut Interpreter, args: &Vec<Literal>) -> RuntimeResult<()> {
+    pub fn call(&self, interpreter: &mut Interpreter, args: &Vec<Literal>) -> RuntimeResult<Literal> {
         let mut env = Environment::new(Some(Rc::clone(&self.closure)));
         for i in 0..self.arity {
             env.define(self.params[i].lexeme.clone(), args[i].clone());
         }
         interpreter.visit_block_stmt(&self.body, Some(env))?;
-        Ok(())
+
+        if self.is_initializer {
+            if let Some(instance) = self.closure.borrow().get_at(&"this".to_string(), 0) {
+                return Ok(instance)
+            }
+        }
+        Ok(Literal::Nothing)
     }
 
     pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Literal {
         let mut env = Environment::new(Some(Rc::clone(&self.closure)));
         env.define("this".to_string(), Literal::Instance(instance));
-        Literal::Fun(Function::new(self.name.clone(), self.params.clone(), self.body.clone(), &Rc::new(RefCell::new(env))))
+        Literal::Fun(Function::new(self.name.clone(), self.params.clone(), self.body.clone(), &Rc::new(RefCell::new(env)), self.is_initializer))
     }
 }
 

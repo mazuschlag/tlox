@@ -9,21 +9,33 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Class {
     pub name: String,
-    pub methods: HashMap<String, Literal>,
-    arity: usize
+    pub methods: HashMap<String, Literal>
 }
 
 impl Class {
     pub fn new(name: String, methods: HashMap<String, Literal>) -> Class {
         Class {
             name,
-            methods,
-            arity: 0
+            methods
         }
     }
 
-    pub fn call(self, _interpreter: &mut Interpreter) -> RuntimeResult<Literal> {
-        Ok(Literal::Instance(Rc::new(RefCell::new(Instance::new(self)))))
+    #[allow(dead_code)]
+    pub fn arity(&self) -> usize {
+        if let Some(Literal::Fun(init)) = self.find_method(&"init".to_string()) {
+            return init.arity;
+        }
+        return 0;
+    }
+
+    pub fn call(&self, interpreter: &mut Interpreter, args: &Vec<Literal>) -> RuntimeResult<Literal> {
+        let instance = Rc::new(RefCell::new(Instance::new(self.clone())));
+        if let Some(Literal::Fun(init)) = self.find_method(&"init".to_string()) {
+            if let Literal::Fun(bound_init) = init.bind(Rc::clone(&instance)) {
+                bound_init.call(interpreter, args)?;
+            }
+        }
+        return Ok(Literal::Instance(instance));
     }
 
     pub fn find_method(&self, name: &String) -> Option<Literal> {

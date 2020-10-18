@@ -140,7 +140,7 @@ impl Interpreter {
     }
 
     fn visit_function_stmt(&mut self, name: &Token, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<()> {
-        let function = Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment);
+        let function = Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment, false);
         self.environment.borrow_mut().define(name.lexeme.clone(), Literal::Fun(function));
         Ok(())
     }
@@ -159,7 +159,7 @@ impl Interpreter {
         let mut class_methods = HashMap::new();
         for method in methods {
             if let Stmt::Function(name, params, body) = method {
-                let function = Literal::Fun(Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment));
+                let function = Literal::Fun(Function::new(Some(name.clone()), params.clone(), body.clone(), &self.environment, name.lexeme == "init"));
                 class_methods.insert(name.lexeme.clone(), function);
             }
         }
@@ -197,9 +197,13 @@ impl Interpreter {
 
     fn visit_var_expr(&self, name: &Token) -> RuntimeResult<Literal> {
         let distance = self.locals.get(name);
-        match distance {
-            Some(d) => self.environment.borrow().get_at(name, *d),
-            None => self.globals.borrow().get(name)
+        let value = match distance {
+            Some(d) => self.environment.borrow().get_at(&name.lexeme, *d),
+            None => self.globals.borrow().get(&name.lexeme)
+        };
+        match value {
+            Some(v) => Ok(v.clone()),
+            None => Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
         }
     }
 
@@ -263,29 +267,29 @@ impl Interpreter {
 
     fn visit_call_expr(&mut self, callee: &Expr, right_paren: &Token, arguments: &Vec<Expression>) -> RuntimeResult<Literal> {
         let callee = self.visit_expr(callee)?;
+        let mut evaluated_args = Vec::new();
+        for arg in arguments {
+            evaluated_args.push(self.visit_expr(arg)?);
+        };
         match callee {
             Literal::Fun(function) =>  {
                 if arguments.len() != function.arity {
                     return Err(RuntimeError::new(right_paren.clone(), "Wrong number of arguments."))
                 }
-                let mut evaluated_args = Vec::new();
-                for arg in arguments {
-                    evaluated_args.push(self.visit_expr(arg)?);
-                };
                 function.call(self, &evaluated_args)?;
                 let value = self.return_value.clone();
                 self.return_value = Literal::Nothing;
                 return Ok(value)
             },
             Literal::Class(class) => {
-                class.call(self)
+                class.call(self, &evaluated_args)
             },
             _ => Err(RuntimeError::new(right_paren.clone(), "Can only call functions and classes.")),
         }
     }
 
     fn visit_lambda_expr(&self, params: &Vec<Token>, body: &Declarations) -> RuntimeResult<Literal> {
-        let function = Function::new(None, params.clone(), body.clone(), &self.environment);
+        let function = Function::new(None, params.clone(), body.clone(), &self.environment, false);
         Ok(Literal::Fun(function))
     }
 
@@ -309,9 +313,13 @@ impl Interpreter {
 
     fn visit_this_expr(&mut self, name: &Token) -> RuntimeResult<Literal> {
         let distance = self.locals.get(name);
-        match distance {
-            Some(d) => self.environment.borrow().get_at(name, *d),
-            None => self.globals.borrow().get(name)
+        let value = match distance {
+            Some(d) => self.environment.borrow().get_at(&name.lexeme, *d),
+            None => self.globals.borrow().get(&name.lexeme)
+        };
+        match value {
+            Some(v) => Ok(v.clone()),
+            None => Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
         }
     }
 

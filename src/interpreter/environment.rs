@@ -27,22 +27,22 @@ impl Environment {
         self.values.insert(name, value);
     }
 
-    pub fn get(&self, name: &Token) -> RuntimeResult<Literal> {
-        match self.values.get(&name.lexeme) {
-            Some(value) => Ok(value.clone()),
+    pub fn get(&self, name: &String) -> Option<Literal> {
+        match self.values.get(name) {
+            Some(value) => Some(value.clone()),
             None => {
                 if let Some(enclosing) = &self.outer_scope {
-                    return enclosing.borrow().get(&name)
-                } 
-                Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+                    return enclosing.borrow().get(name)
+                }
+                None
             }
         }
     }
 
-    pub fn get_at(&self, name: &Token, distance: usize) -> RuntimeResult<Literal> {
-        match self.ancestor(name, distance)?.borrow().values.get(&name.lexeme) {
-            Some(value) => Ok(value.clone()),
-            None => Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+    pub fn get_at(&self, name: &String, distance: usize) -> Option<Literal> {
+        match self.ancestor(distance)?.borrow().values.get(name) {
+            Some(value) => Some(value.clone()),
+            None => None
         }
     }
 
@@ -58,18 +58,21 @@ impl Environment {
     }
 
     pub fn assign_at(&mut self, name: &Token, value: Literal, distance: usize) -> RuntimeResult<()> {
-        self.ancestor(name, distance)?.borrow_mut().values.insert(name.lexeme.clone(), value);
-        Ok(())
+        if let Some(env) = self.ancestor(distance) {
+            env.borrow_mut().values.insert(name.lexeme.clone(), value);
+            return Ok(())
+        }
+        return Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
     }
 
-    fn ancestor(&self, name: &Token, distance: usize) -> RuntimeResult<Rc<RefCell<Environment>>> {
+    fn ancestor(&self, distance: usize) -> Option<Rc<RefCell<Environment>>> {
         let mut environment = Rc::new(RefCell::new(self.clone()));
         for _ in 0..distance {
             environment = match &Rc::clone(&environment).borrow().outer_scope {
                 Some(e) => Rc::clone(e),
-                None => return Err(RuntimeError::new(name.clone(), &format!("Undefined variable '{}'.", name.lexeme)))
+                None => return None
             };
         }
-        Ok(environment)
+        Some(environment)
     }
 }

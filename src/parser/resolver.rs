@@ -19,6 +19,7 @@ type ResolverError = Result<(), String>;
 enum FunctionType {
     Function,
     Method,
+    Initializer,
     NotAFunction
 }
 
@@ -100,6 +101,9 @@ impl<'a> Resolver<'a> {
         if self.current_function == FunctionType::NotAFunction {
             return Err(error(keyword, "Cannot return from top-level code."))
         }
+        if self.current_function == FunctionType::Initializer {
+            return Err(error(keyword, "Cannot return a value from an initializer."))
+        }
         match value {
             Expr::Literal(Literal::Nothing) => Ok(()),
             _ => self.visit_expr(value)
@@ -128,7 +132,11 @@ impl<'a> Resolver<'a> {
         }
         for method in methods {
             if let Stmt::Function(_, params, body) = method {
-                let declaration = FunctionType::Method;
+                let declaration = if name.lexeme == "init" {
+                    FunctionType::Initializer
+                } else {
+                    FunctionType::Method
+                };
                 self.resolve_function(params, body, declaration)?;
             }
         }

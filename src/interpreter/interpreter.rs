@@ -186,6 +186,7 @@ impl Interpreter {
                 Some(value) => value,
                 None => Literal::Nothing,
             };
+            self.in_initializer = false;
             return Ok(());
         }
         self.return_value = match value {

@@ -47,8 +47,10 @@ impl Function {
         for i in 0..self.arity {
             env.define(self.params[i].lexeme.clone(), args[i].clone());
         }
+        let in_initializer = interpreter.in_initializer;
         interpreter.in_initializer = self.is_initializer;
         interpreter.visit_block_stmt(&self.body, Some(env))?;
+        interpreter.in_initializer = in_initializer;
 
         if self.is_initializer {
             if let Some(instance) = self.closure.borrow().get_at(&"this".to_string(), 0) {

@@ -47,6 +47,7 @@ impl Function {
         for i in 0..self.arity {
             env.define(self.params[i].lexeme.clone(), args[i].clone());
         }
+        interpreter.in_initializer = self.is_initializer;
         interpreter.visit_block_stmt(&self.body, Some(env))?;
 
         if self.is_initializer {

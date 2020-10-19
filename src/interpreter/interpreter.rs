@@ -15,6 +15,7 @@ pub struct Interpreter {
     pub globals: Rc<RefCell<Environment>>,
     locals: HashMap<Token, usize>,
     return_value: Literal,
+    pub in_initializer: bool,
 }
 
 pub type RuntimeResult<T> = Result<T, RuntimeError>;
@@ -25,11 +26,13 @@ impl Interpreter {
         let environment = Rc::clone(&globals);
         let locals = HashMap::new();
         let return_value = Literal::Nothing;
+        let in_initializer = false;
         Interpreter {
             globals,
             environment,
             locals,
             return_value,
+            in_initializer,
         }
     }
 
@@ -178,6 +181,13 @@ impl Interpreter {
 
     #[allow(unused_variables)]
     fn visit_return_stmt(&mut self, keyword: &Token, value: &Expr) -> RuntimeResult<()> {
+        if self.in_initializer {
+            self.return_value = match self.environment.borrow().get_at(&"this".to_string(), 0) {
+                Some(value) => value,
+                None => Literal::Nothing,
+            };
+            return Ok(());
+        }
         self.return_value = match value {
             Expr::Literal(Literal::Nothing) => Literal::Nothing,
             _ => self.visit_expr(value)?,

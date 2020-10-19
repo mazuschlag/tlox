@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Instance {
-    class: Rc<RefCell<Class>>,
+    pub class: Rc<RefCell<Class>>,
     pub fields: HashMap<String, Literal>,
 }
 

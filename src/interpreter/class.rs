@@ -26,17 +26,19 @@ impl Class {
     }
 
     pub fn call(
-        &self,
+        self,
         interpreter: &mut Interpreter,
         args: &Vec<Literal>,
     ) -> RuntimeResult<Literal> {
-        let instance = Rc::new(RefCell::new(Instance::new(self.clone())));
-        if let Some(Literal::Fun(init)) = self.find_method(&"init".to_string()) {
-            if let Literal::Fun(bound_init) = init.bind(Rc::clone(&instance)) {
+        let instance = Instance::new(self);
+        let init_function = instance.class.borrow().find_method(&"init".to_string());
+        let wrapped_instance = Rc::new(RefCell::new(instance));
+        if let Some(Literal::Fun(init)) = init_function {
+            if let Literal::Fun(bound_init) = init.bind(Rc::clone(&wrapped_instance)) {
                 bound_init.call(interpreter, args)?;
             }
         }
-        return Ok(Literal::Instance(instance));
+        return Ok(Literal::Instance(wrapped_instance));
     }
 
     pub fn find_method(&self, name: &String) -> Option<Literal> {

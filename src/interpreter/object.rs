@@ -28,7 +28,6 @@ impl Object {
         }
         if let Some(Literal::Fun(method)) = self.class.borrow().find_method(&name.lexeme) {
             return Ok(method.bind(Instance::Dynamic(Rc::new(RefCell::new(self.clone())))));
-            // this seems dangerous
         }
         Err(RuntimeError::new(
             name.clone(),

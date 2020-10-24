@@ -3,6 +3,7 @@ use super::statement::{Declarations, Stmt};
 use crate::error::report::error;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
+use std::fmt;
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -14,6 +15,23 @@ pub struct Parser<'a> {
 }
 
 type ParseResult<T> = Result<T, String>;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum FunctionType {
+    Function,
+    Method,
+    Static,
+}
+
+impl fmt::Display for FunctionType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            FunctionType::Function => write!(f, "function"),
+            FunctionType::Method => write!(f, "method"),
+            FunctionType::Static => write!(f, "static function"),
+        }
+    }
+}
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &Vec<Token>, is_repl: bool) -> Parser {
@@ -43,7 +61,7 @@ impl<'a> Parser<'a> {
             return self.class_declaration();
         }
         if self.matches(&[TokenType::Fun]) {
-            return self.function("function");
+            return self.function(FunctionType::Function);
         }
         self.statement()
     }
@@ -63,24 +81,45 @@ impl<'a> Parser<'a> {
         self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
         let mut methods = Vec::new();
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            methods.push(self.function("method")?);
+            methods.push(self.class_function()?);
         }
         self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
         Ok(Stmt::Class(name, methods))
     }
 
-    fn function(&mut self, kind: &str) -> ParseResult<Stmt> {
-        let name = if self.matches(&[TokenType::Class]) {
-            self.consume(TokenType::Identifier, &format!("Expect {} name.", "class"))?
+    fn class_function(&mut self) -> ParseResult<Stmt> {
+        let kind = if self.matches(&[TokenType::Class]) {
+            FunctionType::Static
         } else {
-            self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?
+            FunctionType::Method
         };
+        self.function(kind)
+    }
 
-        self.consume(
-            TokenType::LeftParen,
-            &format!("Expect '(' after {} name.", kind),
-        )?;
+    fn function(&mut self, kind: FunctionType) -> ParseResult<Stmt> {
+        let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
         let mut params = Vec::new();
+        if kind == FunctionType::Function || kind == FunctionType::Static {
+            self.consume(
+                TokenType::LeftParen,
+                &format!("Expect '(' after {} name.", kind),
+            )?;
+            params = self.function_arguments(params)?;
+            self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+        }
+        if kind == FunctionType::Method && self.matches(&[TokenType::LeftParen]) {
+            params = self.function_arguments(params)?;
+            self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+        }
+        self.consume(
+            TokenType::LeftBrace,
+            &format!("Expect '{{' before {} body.", kind),
+        )?;
+        let body = self.block()?;
+        Ok(Stmt::Function(name, params, body))
+    }
+
+    fn function_arguments(&mut self, mut params: Vec<Token>) -> ParseResult<Vec<Token>> {
         if !self.check(TokenType::RightParen) {
             params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
             while self.matches(&[TokenType::Comma]) {
@@ -90,13 +129,7 @@ impl<'a> Parser<'a> {
                 params.push(self.consume(TokenType::Identifier, "Expect parameter name.")?);
             }
         }
-        self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
-        self.consume(
-            TokenType::LeftBrace,
-            &format!("Expect '{{' before {} body.", kind),
-        )?;
-        let body = self.block()?;
-        Ok(Stmt::Function(name, params, body))
+        Ok(params)
     }
 
     fn statement(&mut self) -> ParseResult<Stmt> {

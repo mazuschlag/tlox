@@ -48,7 +48,6 @@ impl Class {
     pub fn get(&self, name: &Token) -> RuntimeResult<Literal> {
         if let Some(Literal::Fun(method)) = self.find_method(&name.lexeme) {
             return Ok(method.bind(Instance::Static(Rc::new(RefCell::new(self.clone())))));
-            // this seems dangerous
         }
         Err(RuntimeError::new(
             name.clone(),

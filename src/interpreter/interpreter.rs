@@ -212,8 +212,8 @@ impl Interpreter {
                 class_methods.insert(name.lexeme.clone(), function);
             }
         }
-        let klass = Literal::Class(Class::new(name.lexeme.clone(), class_methods));
-        self.environment.borrow_mut().assign(name, klass)
+        let class = Literal::Class(Class::new(name.lexeme.clone(), class_methods));
+        self.environment.borrow_mut().assign(name, class)
     }
 
     fn visit_expr(&mut self, expr: &Expr) -> RuntimeResult<Literal> {
@@ -396,7 +396,14 @@ impl Interpreter {
         let instance = self.visit_expr(expr)?;
 
         if let Literal::Instance(Instance::Dynamic(object)) = instance {
-            return object.borrow().get(name);
+            let result = object.borrow().get(name)?;
+            if let Literal::Fun(getter) = result {
+                getter.call(self, &Vec::new())?;
+                let value = self.return_value.clone();
+                self.return_value = Literal::Nothing;
+                return Ok(value);
+            }
+            return Ok(result);
         }
         if let Literal::Class(class) = instance {
             return class.get(name);

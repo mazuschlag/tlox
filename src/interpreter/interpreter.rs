@@ -2,7 +2,7 @@ use crate::error::report::{runtime_report, RuntimeError};
 use crate::interpreter::class::Class;
 use crate::interpreter::environment::Environment;
 use crate::interpreter::function::Function;
-use crate::lexer::literal::Literal;
+use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::{Token, TokenType};
 use crate::parser::expression::{Expr, Expression};
 use crate::parser::statement::{Declarations, Stmt};
@@ -229,7 +229,7 @@ impl Interpreter {
                 self.visit_call_expr(callee, right_paren, arguments)
             }
             Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
-            Expr::Get(object, name) => self.visit_get_expr(object, name),
+            Expr::Get(instance, name) => self.visit_get_expr(instance, name),
             Expr::Set(object, name, value) => self.visit_set_expr(object, name, value),
             Expr::This(name) => self.visit_this_expr(name),
             Expr::Literal(value) => self.visit_literal(value.clone()),
@@ -393,9 +393,13 @@ impl Interpreter {
     }
 
     fn visit_get_expr(&mut self, expr: &Expr, name: &Token) -> RuntimeResult<Literal> {
-        let object = self.visit_expr(expr)?;
-        if let Literal::Instance(instance) = object {
-            return instance.borrow().get(name);
+        let instance = self.visit_expr(expr)?;
+
+        if let Literal::Instance(Instance::Dynamic(object)) = instance {
+            return object.borrow().get(name);
+        }
+        if let Literal::Class(class) = instance {
+            return class.get(name);
         }
         Err(RuntimeError::new(
             name.clone(),
@@ -409,10 +413,10 @@ impl Interpreter {
         name: &Token,
         right: &Expr,
     ) -> RuntimeResult<Literal> {
-        let object = self.visit_expr(left)?;
-        if let Literal::Instance(instance) = object {
+        let instance = self.visit_expr(left)?;
+        if let Literal::Instance(Instance::Dynamic(object)) = instance {
             let value = self.visit_expr(right)?;
-            let result = instance.borrow_mut().set(name, value)?;
+            let result = object.borrow_mut().set(name, value)?;
             return Ok(result);
         }
         Err(RuntimeError::new(

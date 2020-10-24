@@ -70,7 +70,12 @@ impl<'a> Parser<'a> {
     }
 
     fn function(&mut self, kind: &str) -> ParseResult<Stmt> {
-        let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
+        let name = if self.matches(&[TokenType::Class]) {
+            self.consume(TokenType::Identifier, &format!("Expect {} name.", "class"))?
+        } else {
+            self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?
+        };
+
         self.consume(
             TokenType::LeftParen,
             &format!("Expect '(' after {} name.", kind),

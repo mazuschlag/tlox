@@ -1,7 +1,7 @@
 use crate::error::report::RuntimeError;
 use crate::interpreter::class::Class;
 use crate::interpreter::interpreter::RuntimeResult;
-use crate::lexer::literal::Literal;
+use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::Token;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -9,14 +9,14 @@ use std::fmt;
 use std::rc::Rc;
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Instance {
+pub struct Object {
     pub class: Rc<RefCell<Class>>,
     pub fields: HashMap<String, Literal>,
 }
 
-impl Instance {
-    pub fn new(class: Class) -> Instance {
-        Instance {
+impl Object {
+    pub fn new(class: Class) -> Object {
+        Object {
             class: Rc::new(RefCell::new(class)),
             fields: HashMap::new(),
         }
@@ -27,7 +27,8 @@ impl Instance {
             return Ok(value.clone());
         }
         if let Some(Literal::Fun(method)) = self.class.borrow().find_method(&name.lexeme) {
-            return Ok(method.bind(Rc::new(RefCell::new(self.clone())))); // this seems dangerous
+            return Ok(method.bind(Instance::Dynamic(Rc::new(RefCell::new(self.clone())))));
+            // this seems dangerous
         }
         Err(RuntimeError::new(
             name.clone(),
@@ -41,7 +42,7 @@ impl Instance {
     }
 }
 
-impl fmt::Display for Instance {
+impl fmt::Display for Object {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let mut string = "<object {}>".to_string();
         for (key, value) in &self.fields {

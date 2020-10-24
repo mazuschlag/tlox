@@ -1,7 +1,6 @@
 use crate::interpreter::environment::Environment;
-use crate::interpreter::instance::Instance;
 use crate::interpreter::interpreter::{Interpreter, RuntimeResult};
-use crate::lexer::literal::Literal;
+use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::Token;
 use crate::parser::statement::Stmt;
 use std::cell::RefCell;
@@ -60,7 +59,7 @@ impl Function {
         Ok(Literal::Nothing)
     }
 
-    pub fn bind(&self, instance: Rc<RefCell<Instance>>) -> Literal {
+    pub fn bind(&self, instance: Instance) -> Literal {
         let mut env = Environment::new(Some(Rc::clone(&self.closure)));
         env.define("this".to_string(), Literal::Instance(instance));
         Literal::Fun(Function::new(

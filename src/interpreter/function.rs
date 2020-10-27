@@ -73,7 +73,6 @@ impl Function {
             return Literal::Get(function);
         }
         Literal::Fun(function)
-        
     }
 }
 

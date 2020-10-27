@@ -63,8 +63,16 @@ impl Interpreter {
             }
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
             Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
+            Stmt::Getter(name, _) => {
+                return Err(RuntimeError::new(
+                    name.clone(),
+                    &format!("{} getter require a class.", name.lexeme),
+                ))
+            }
             Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value),
-            Stmt::Class(name, methods) => self.visit_class_stmt(name, methods),
+            Stmt::Class(name, methods, super_class) => {
+                self.visit_class_stmt(name, methods, super_class)
+            }
         }?;
         Ok(())
     }
@@ -195,7 +203,25 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> RuntimeResult<()> {
+    fn visit_class_stmt(
+        &mut self,
+        name: &Token,
+        methods: &Vec<Stmt>,
+        super_class: &Option<Expr>,
+    ) -> RuntimeResult<()> {
+        let parent_class = if let Some(super_class) = super_class {
+            match self.visit_expr(super_class)? {
+                Literal::Class(class) => Some(Rc::new(RefCell::new(class))),
+                _ => {
+                    return Err(RuntimeError::new(
+                        name.clone(),
+                        &format!("Undefined variable '{}'.", name.lexeme),
+                    ))
+                }
+            }
+        } else {
+            None
+        };
         self.environment
             .borrow_mut()
             .define(name.lexeme.clone(), Literal::Nothing);
@@ -211,8 +237,19 @@ impl Interpreter {
                 ));
                 class_methods.insert(name.lexeme.clone(), function);
             }
+
+            if let Stmt::Getter(name, body) = method {
+                let function = Literal::Get(Function::new(
+                    Some(name.clone()),
+                    Vec::new(),
+                    body.clone(),
+                    &self.environment,
+                    false,
+                ));
+                class_methods.insert(name.lexeme.clone(), function);
+            }
         }
-        let class = Literal::Class(Class::new(name.lexeme.clone(), class_methods));
+        let class = Literal::Class(Class::new(name.lexeme.clone(), class_methods, parent_class));
         self.environment.borrow_mut().assign(name, class)
     }
 
@@ -394,10 +431,9 @@ impl Interpreter {
 
     fn visit_get_expr(&mut self, expr: &Expr, name: &Token) -> RuntimeResult<Literal> {
         let instance = self.visit_expr(expr)?;
-
         if let Literal::Instance(Instance::Dynamic(object)) = instance {
             let result = object.borrow().get(name)?;
-            if let Literal::Fun(getter) = result {
+            if let Literal::Get(getter) = result {
                 getter.call(self, &Vec::new())?;
                 let value = self.return_value.clone();
                 self.return_value = Literal::Nothing;

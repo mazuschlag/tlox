@@ -27,7 +27,10 @@ impl Object {
             return Ok(value.clone());
         }
         if let Some(Literal::Fun(method)) = self.class.borrow().find_method(&name.lexeme) {
-            return Ok(method.bind(Instance::Dynamic(Rc::new(RefCell::new(self.clone())))));
+            return Ok(method.bind(Instance::Dynamic(Rc::new(RefCell::new(self.clone()))), false));
+        }
+        if let Some(Literal::Get(getter)) = self.class.borrow().find_method(&name.lexeme) {
+            return Ok(getter.bind(Instance::Dynamic(Rc::new(RefCell::new(self.clone()))), true));
         }
         Err(RuntimeError::new(
             name.clone(),

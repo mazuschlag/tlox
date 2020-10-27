@@ -10,6 +10,7 @@ pub enum Literal {
     Number(f64),
     Bool(bool),
     Fun(Function),
+    Get(Function),
     Class(Class),
     Instance(Instance),
     Nothing,
@@ -28,6 +29,7 @@ impl fmt::Display for Literal {
             Literal::Number(n) => write!(f, "{}", n),
             Literal::Bool(b) => write!(f, "{}", b),
             Literal::Fun(function) => write!(f, "{}", function.to_string()),
+            Literal::Get(function) => write!(f, "getter {}", function.to_string()),
             Literal::Class(class) => write!(f, "{}", class.to_string()),
             Literal::Instance(instance) => match instance {
                 Instance::Static(class) => write!(f, "{}", class.borrow().to_string()),

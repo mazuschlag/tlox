@@ -12,11 +12,20 @@ use std::rc::Rc;
 pub struct Class {
     pub name: String,
     pub methods: HashMap<String, Literal>,
+    pub super_class: Option<Rc<RefCell<Class>>>,
 }
 
 impl Class {
-    pub fn new(name: String, methods: HashMap<String, Literal>) -> Class {
-        Class { name, methods }
+    pub fn new(
+        name: String,
+        methods: HashMap<String, Literal>,
+        super_class: Option<Rc<RefCell<Class>>>,
+    ) -> Class {
+        Class {
+            name,
+            methods,
+            super_class,
+        }
     }
 
     #[allow(dead_code)]
@@ -37,7 +46,7 @@ impl Class {
         let wrapped_instance = Rc::new(RefCell::new(instance));
         if let Some(Literal::Fun(init)) = init_function {
             if let Literal::Fun(bound_init) =
-                init.bind(Instance::Dynamic(Rc::clone(&wrapped_instance)))
+                init.bind(Instance::Dynamic(Rc::clone(&wrapped_instance)), false)
             {
                 bound_init.call(interpreter, args)?;
             }
@@ -47,7 +56,7 @@ impl Class {
 
     pub fn get(&self, name: &Token) -> RuntimeResult<Literal> {
         if let Some(Literal::Fun(method)) = self.find_method(&name.lexeme) {
-            return Ok(method.bind(Instance::Static(Rc::new(RefCell::new(self.clone())))));
+            return Ok(method.bind(Instance::Static(Rc::new(RefCell::new(self.clone()))), false));
         }
         Err(RuntimeError::new(
             name.clone(),
@@ -56,10 +65,14 @@ impl Class {
     }
 
     pub fn find_method(&self, name: &String) -> Option<Literal> {
-        match self.methods.get(name) {
+        let mut method = match self.methods.get(name) {
             Some(method) => Some(method.clone()),
             None => None,
+        };
+        if let Some(class) = &self.super_class {
+            method = class.borrow().find_method(name);
         }
+        method
     }
 }
 

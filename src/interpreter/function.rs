@@ -10,7 +10,7 @@ use std::rc::Rc;
 #[derive(Debug, PartialEq, Clone)]
 pub struct Function {
     pub arity: usize,
-    name: Option<Token>,
+    pub name: Option<Token>,
     params: Vec<Token>,
     body: Vec<Stmt>,
     closure: Rc<RefCell<Environment>>,
@@ -59,16 +59,21 @@ impl Function {
         Ok(Literal::Nothing)
     }
 
-    pub fn bind(&self, instance: Instance) -> Literal {
+    pub fn bind(&self, instance: Instance, is_getter: bool) -> Literal {
         let mut env = Environment::new(Some(Rc::clone(&self.closure)));
         env.define("this".to_string(), Literal::Instance(instance));
-        Literal::Fun(Function::new(
+        let function = Function::new(
             self.name.clone(),
             self.params.clone(),
             self.body.clone(),
             &Rc::new(RefCell::new(env)),
             self.is_initializer,
-        ))
+        );
+        if is_getter {
+            return Literal::Get(function);
+        }
+        Literal::Fun(function)
+        
     }
 }
 

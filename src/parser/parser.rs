@@ -1,9 +1,8 @@
-use super::expression::{Expr, Expression};
+use super::expression::{Expr, Expression, FunctionType};
 use super::statement::{Declarations, Stmt};
 use crate::error::report::error;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
-use std::fmt;
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -15,23 +14,6 @@ pub struct Parser<'a> {
 }
 
 type ParseResult<T> = Result<T, String>;
-
-#[derive(Debug, PartialEq, Clone, Copy)]
-enum FunctionType {
-    Function,
-    Method,
-    Static,
-}
-
-impl fmt::Display for FunctionType {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            FunctionType::Function => write!(f, "function"),
-            FunctionType::Method => write!(f, "method"),
-            FunctionType::Static => write!(f, "static function"),
-        }
-    }
-}
 
 impl<'a> Parser<'a> {
     pub fn new(tokens: &Vec<Token>, is_repl: bool) -> Parser {
@@ -78,13 +60,18 @@ impl<'a> Parser<'a> {
 
     fn class_declaration(&mut self) -> ParseResult<Stmt> {
         let name = self.consume(TokenType::Identifier, "Expect class name.")?;
+        let mut super_class = None;
+        if self.matches(&[TokenType::Less]) {
+            self.consume(TokenType::Identifier, "Expect superclass name")?;
+            super_class = Some(Expr::Variable(self.previous()));
+        }
         self.consume(TokenType::LeftBrace, "Expect '{' before class body")?;
         let mut methods = Vec::new();
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             methods.push(self.class_function()?);
         }
         self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
-        Ok(Stmt::Class(name, methods))
+        Ok(Stmt::Class(name, methods, Box::new(super_class)))
     }
 
     fn class_function(&mut self) -> ParseResult<Stmt> {
@@ -96,27 +83,33 @@ impl<'a> Parser<'a> {
         self.function(kind)
     }
 
-    fn function(&mut self, kind: FunctionType) -> ParseResult<Stmt> {
+    fn function(&mut self, mut kind: FunctionType) -> ParseResult<Stmt> {
         let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
         let mut params = Vec::new();
-        if kind == FunctionType::Function || kind == FunctionType::Static {
-            self.consume(
-                TokenType::LeftParen,
-                &format!("Expect '(' after {} name.", kind),
-            )?;
-            params = self.function_arguments(params)?;
-            self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
-        }
-        if kind == FunctionType::Method && self.matches(&[TokenType::LeftParen]) {
-            params = self.function_arguments(params)?;
-            self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
-        }
+        match kind {
+            FunctionType::Function | FunctionType::Static => {
+                self.consume(
+                    TokenType::LeftParen,
+                    &format!("Expect '(' after {} name.", kind),
+                )?;
+                params = self.function_arguments(params)?;
+                self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+            }
+            FunctionType::Method if self.matches(&[TokenType::LeftParen]) => {
+                params = self.function_arguments(params)?;
+                self.consume(TokenType::RightParen, "Expect ')' after parameters")?;
+            }
+            _ => kind = FunctionType::Getter,
+        };
         self.consume(
             TokenType::LeftBrace,
             &format!("Expect '{{' before {} body.", kind),
         )?;
         let body = self.block()?;
-        Ok(Stmt::Function(name, params, body))
+        match kind {
+            FunctionType::Getter => Ok(Stmt::Getter(name, body)),
+            _ => Ok(Stmt::Function(name, params, body)),
+        }
     }
 
     fn function_arguments(&mut self, mut params: Vec<Token>) -> ParseResult<Vec<Token>> {

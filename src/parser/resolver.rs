@@ -61,7 +61,10 @@ impl<'a> Resolver<'a> {
             Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, value),
             Stmt::While(condition, body) => self.visit_while_stmt(condition, body),
             Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
-            Stmt::Class(name, methods) => self.visit_class_stmt(name, methods),
+            Stmt::Getter(name, body) => self.visit_getter_stmt(name, body),
+            Stmt::Class(name, methods, super_class) => {
+                self.visit_class_stmt(name, methods, super_class)
+            }
         }
     }
 
@@ -133,11 +136,30 @@ impl<'a> Resolver<'a> {
         self.resolve_function(params, body, FunctionType::Function)
     }
 
-    fn visit_class_stmt(&mut self, name: &Token, methods: &Vec<Stmt>) -> ResolverError {
+    fn visit_getter_stmt(&mut self, name: &Token, body: &Declarations) -> ResolverError {
+        self.declare(name)?;
+        self.define(name);
+        self.resolve_function(&Vec::new(), body, FunctionType::Method)
+    }
+
+    fn visit_class_stmt(
+        &mut self,
+        name: &Token,
+        methods: &Vec<Stmt>,
+        super_class: &Option<Expr>,
+    ) -> ResolverError {
         let enclosing_class = self.current_class;
         self.current_class = ClassType::Class;
         self.declare(name)?;
         self.define(name);
+        if let Some(Expr::Variable(super_class_name)) = super_class {
+            if super_class_name.lexeme == name.lexeme {
+                return Err(error(name, "A class can't inherit from itself."));
+            }
+        }
+        if let Some(class) = super_class {
+            self.visit_expr(class)?;
+        }
         self.begin_scope();
         if let Some(scope) = self.scopes.last_mut() {
             scope.insert("this".to_string(), true);

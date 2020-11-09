@@ -27,6 +27,7 @@ enum FunctionType {
 enum ClassType {
     NotAClass,
     Class,
+    SubClass
 }
 
 impl<'a> Resolver<'a> {
@@ -158,7 +159,14 @@ impl<'a> Resolver<'a> {
             }
         }
         if let Some(class) = super_class {
+            self.current_class = ClassType::SubClass;
             self.visit_expr(class)?;
+        }
+        if let Some(_) = super_class {
+            self.begin_scope();
+            if let Some(scope) = self.scopes.last_mut() {
+                scope.insert("super".to_string(), true);
+            }
         }
         self.begin_scope();
         if let Some(scope) = self.scopes.last_mut() {
@@ -175,6 +183,9 @@ impl<'a> Resolver<'a> {
             }
         }
         self.end_scope();
+        if let Some(_) = super_class {
+            self.end_scope();
+        }
         self.current_class = enclosing_class;
         Ok(())
     }
@@ -193,6 +204,7 @@ impl<'a> Resolver<'a> {
             Expr::Get(object, _) => self.visit_get_expr(object),
             Expr::Set(object, _, value) => self.visit_set_expr(object, value),
             Expr::This(name) => self.visit_this_expr(name),
+            Expr::Super(keyword, _) => self.visit_super_expr(keyword),
             Expr::Literal(_) => self.visit_literal(),
         }
     }
@@ -274,6 +286,11 @@ impl<'a> Resolver<'a> {
             return Err(error(name, "Cannot use 'this' outside of a class."));
         }
         self.resolve_local(name);
+        Ok(())
+    }
+
+    fn visit_super_expr(&mut self, keyword: &Token) -> ResolverError {
+        self.resolve_local(keyword);
         Ok(())
     }
 

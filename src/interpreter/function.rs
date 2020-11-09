@@ -42,6 +42,7 @@ impl Function {
         interpreter: &mut Interpreter,
         args: &Vec<Literal>,
     ) -> RuntimeResult<Literal> {
+        println!("calling: {:?}", self.name);
         let mut env = Environment::new(Some(Rc::clone(&self.closure)));
         for i in 0..self.arity {
             env.define(self.params[i].lexeme.clone(), args[i].clone());

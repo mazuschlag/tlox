@@ -11,7 +11,7 @@ type Enclosing = Option<Rc<RefCell<Environment>>>;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Environment {
     pub values: HashMap<String, Literal>,
-    outer_scope: Enclosing,
+    pub outer_scope: Enclosing,
 }
 
 impl Environment {

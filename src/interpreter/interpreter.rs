@@ -41,6 +41,7 @@ impl Interpreter {
     }
 
     pub fn interpret(&mut self, program: &Declarations) {
+        dbg!(program);
         for stmt in program {
             let result = self
                 .visit_stmt(stmt)
@@ -215,7 +216,7 @@ impl Interpreter {
                 _ => {
                     return Err(RuntimeError::new(
                         name.clone(),
-                        &format!("Undefined variable '{}'.", name.lexeme),
+                        &format!("Superclass must be a class."),
                     ))
                 }
             }
@@ -225,6 +226,12 @@ impl Interpreter {
         self.environment
             .borrow_mut()
             .define(name.lexeme.clone(), Literal::Nothing);
+        if let Some(class) = super_class {
+            self.environment = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&self.environment)))));
+            let parent_class = self.visit_expr(class)?;
+            self.environment.borrow_mut().define("super".to_string(), parent_class);
+        }
+
         let mut class_methods = HashMap::new();
         for method in methods {
             if let Stmt::Function(name, params, body) = method {
@@ -250,6 +257,14 @@ impl Interpreter {
             }
         }
         let class = Literal::Class(Class::new(name.lexeme.clone(), class_methods, parent_class));
+        if let Some(_) = super_class {
+            let current_env = Rc::clone(&self.environment);
+            self.environment = match &current_env.borrow().outer_scope {
+                Some(enclosing) => Rc::clone(&enclosing),
+                None => Rc::clone(&self.globals)
+            };
+        }
+
         self.environment.borrow_mut().assign(name, class)
     }
 
@@ -269,6 +284,7 @@ impl Interpreter {
             Expr::Get(instance, name) => self.visit_get_expr(instance, name),
             Expr::Set(object, name, value) => self.visit_set_expr(object, name, value),
             Expr::This(name) => self.visit_this_expr(name),
+            Expr::Super(keyword, method) => self.visit_super_expr(keyword, method),
             Expr::Literal(value) => self.visit_literal(value.clone()),
         }
     }
@@ -481,6 +497,23 @@ impl Interpreter {
                 &format!("Undefined variable '{}'.", name.lexeme),
             )),
         }
+    }
+
+    fn visit_super_expr(&mut self, keyword: &Token, method: &Token) -> RuntimeResult<Literal> {
+        let distance = self.locals.get(keyword);
+        if let Some(d) = distance {
+            let super_class = self.environment.borrow().get_at(&"super".to_string(), *d);
+            let object = self.environment.borrow().get_at(&"this".to_string(), d - 1);
+            if let Some(Literal::Class(class)) = super_class {
+                if let Some(Literal::Instance(instance)) = object {
+                    let method = class.find_method(&method.lexeme);
+                    if let Some(Literal::Fun(function)) = method {
+                        return Ok(function.bind(instance, false));
+                    }
+                }
+            }
+        }
+        Err(RuntimeError::new(method.clone(), &format!("Undefined property '{}'.", method.lexeme)))
     }
 
     fn visit_literal(&self, value: Literal) -> RuntimeResult<Literal> {

@@ -18,6 +18,7 @@ pub enum Expr {
     Get(Expression, Token),
     Set(Expression, Token, Expression),
     This(Token),
+    Super(Token, Token)
 }
 
 pub type Expression = Box<Expr>;

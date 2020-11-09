@@ -475,6 +475,13 @@ impl<'a> Parser<'a> {
             return Ok(Box::new(Expr::Variable(self.previous())));
         }
 
+        if self.matches(&[TokenType::Super]) {
+            let keyword = self.previous();
+            self.consume(TokenType::Dot, "Expect '.' after 'super'.")?;
+            let method = self.consume(TokenType::Identifier, "Expect superclass method name.")?;
+            return Ok(Box::new(Expr::Super(keyword, method)));
+        }
+
         Err(self.parse_error("Expect expression."))
     }
 

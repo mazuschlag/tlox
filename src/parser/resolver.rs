@@ -290,8 +290,14 @@ impl<'a> Resolver<'a> {
     }
 
     fn visit_super_expr(&mut self, keyword: &Token) -> ResolverError {
-        self.resolve_local(keyword);
-        Ok(())
+        return match self.current_class {
+            ClassType::Class => Err(error(keyword, "Can't use 'super' in a class with no superclass.")),
+            ClassType::NotAClass => Err(error(keyword, "Can't use 'super' outside of a class.")),
+            ClassType::SubClass => {
+                self.resolve_local(keyword);
+                Ok(())
+            }
+        }
     }
 
     fn visit_literal(&self) -> ResolverError {

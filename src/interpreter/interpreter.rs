@@ -114,6 +114,7 @@ impl Interpreter {
         statements: &Declarations,
         environment: Option<Environment>,
     ) -> RuntimeResult<()> {
+        //dbg!(statements);
         if self.return_value != Literal::Nothing {
             return Ok(());
         }
@@ -448,6 +449,7 @@ impl Interpreter {
     fn visit_get_expr(&mut self, expr: &Expr, name: &Token) -> RuntimeResult<Literal> {
         let instance = self.visit_expr(expr)?;
         if let Literal::Instance(Instance::Dynamic(object)) = instance {
+            // This is grabbing the wrong function
             let result = object.borrow().get(name)?;
             if let Literal::Get(getter) = result {
                 getter.call(self, &Vec::new())?;
@@ -455,7 +457,11 @@ impl Interpreter {
                 self.return_value = Literal::Nothing;
                 return Ok(value);
             }
-            return Ok(result);
+            if let Literal::Fun(fun) = result {
+                dbg!(&fun.name);
+                return Ok(Literal::Fun(fun));
+            }
+            return Ok(result)
         }
         if let Literal::Class(class) = instance {
             return class.get(name);

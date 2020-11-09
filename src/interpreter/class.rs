@@ -65,14 +65,15 @@ impl Class {
     }
 
     pub fn find_method(&self, name: &String) -> Option<Literal> {
-        let mut method = match self.methods.get(name) {
+        return match self.methods.get(name) {
             Some(method) => Some(method.clone()),
-            None => None,
-        };
-        if let Some(class) = &self.super_class {
-            method = class.borrow().find_method(name);
+            None => {
+                if let Some(class) = &self.super_class {
+                    return class.borrow().find_method(name);
+                }
+                None
+            }
         }
-        method
     }
 }
 

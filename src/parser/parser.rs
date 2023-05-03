@@ -1,8 +1,9 @@
-use super::expression::{Expr, Expression, FunctionType};
-use super::statement::{Declarations, Stmt};
 use crate::error::report::error;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
+use super::expression::{Expr, ExprRef, FunctionType};
+use super::pool::Pool;
+use super::statement::{Declarations, Stmt, StmtRef};
 
 #[derive(Debug)]
 pub struct Parser<'a> {
@@ -11,6 +12,8 @@ pub struct Parser<'a> {
     is_repl: bool,
     pub errors: Vec<String>,
     pub statements: Declarations,
+    expr_pool: Pool<Expr>,
+    stmt_pool: Pool<Stmt>,
 }
 
 type ParseResult<T> = Result<T, String>;
@@ -23,6 +26,8 @@ impl<'a> Parser<'a> {
             is_repl: is_repl,
             errors: Vec::new(),
             statements: Vec::new(),
+            expr_pool: Pool::default(),
+            stmt_pool: Pool::default(),
         }
     }
 
@@ -35,7 +40,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn declaration(&mut self) -> ParseResult<Stmt> {
+    fn declaration(&mut self) -> ParseResult<StmtRef> {
         if self.matches(&[TokenType::Var]) {
             return self.var_declaration();
         }
@@ -48,17 +53,17 @@ impl<'a> Parser<'a> {
         self.statement()
     }
 
-    fn var_declaration(&mut self) -> ParseResult<Stmt> {
+    fn var_declaration(&mut self) -> ParseResult<StmtRef> {
         let name = self.consume(TokenType::Identifier, "Expect variable name.")?;
         let initializer = match self.matches(&[TokenType::Equal]) {
             true => self.expression()?,
-            false => Box::new(Expr::Literal(Literal::Nothing)),
+            false => self.expr_pool.add(Expr::Literal(Literal::Nothing)),
         };
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Var(name, initializer))
     }
 
-    fn class_declaration(&mut self) -> ParseResult<Stmt> {
+    fn class_declaration(&mut self) -> ParseResult<StmtRef> {
         let name = self.consume(TokenType::Identifier, "Expect class name.")?;
         let mut super_class = None;
         if self.matches(&[TokenType::Less]) {
@@ -71,10 +76,10 @@ impl<'a> Parser<'a> {
             methods.push(self.class_function()?);
         }
         self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
-        Ok(Stmt::Class(name, methods, Box::new(super_class)))
+        Ok(Stmt::Class(name, methods, super_class.map(|class| self.expr_pool.add(class))))
     }
 
-    fn class_function(&mut self) -> ParseResult<Stmt> {
+    fn class_function(&mut self) -> ParseResult<StmtRef> {
         let kind = if self.matches(&[TokenType::Class]) {
             FunctionType::Static
         } else {
@@ -83,7 +88,7 @@ impl<'a> Parser<'a> {
         self.function(kind)
     }
 
-    fn function(&mut self, mut kind: FunctionType) -> ParseResult<Stmt> {
+    fn function(&mut self, mut kind: FunctionType) -> ParseResult<StmtRef> {
         let name = self.consume(TokenType::Identifier, &format!("Expect {} name.", kind))?;
         let mut params = Vec::new();
         match kind {
@@ -125,7 +130,7 @@ impl<'a> Parser<'a> {
         Ok(params)
     }
 
-    fn statement(&mut self) -> ParseResult<Stmt> {
+    fn statement(&mut self) -> ParseResult<StmtRef> {
         if self.matches(&[TokenType::Print]) {
             return self.print_statement();
         }
@@ -156,13 +161,13 @@ impl<'a> Parser<'a> {
         Ok(statements)
     }
 
-    fn print_statement(&mut self) -> ParseResult<Stmt> {
+    fn print_statement(&mut self) -> ParseResult<StmtRef> {
         let value = self.expression()?;
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Print(value))
     }
 
-    fn if_statement(&mut self) -> ParseResult<Stmt> {
+    fn if_statement(&mut self) -> ParseResult<StmtRef> {
         self.consume(TokenType::LeftParen, "Expect '(' after 'if'.")?;
         let condition = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after if condition.")?;
@@ -179,15 +184,16 @@ impl<'a> Parser<'a> {
         ))
     }
 
-    fn while_statement(&mut self) -> ParseResult<Stmt> {
+    fn while_statement(&mut self) -> ParseResult<StmtRef> {
         self.consume(TokenType::LeftParen, "Expect '(' after 'while'.")?;
         let condition = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after while condition.")?;
         let body = self.statement()?;
-        Ok(Stmt::While(condition, Box::new(body)))
+        let stmts = self.stmt_pool.add(body);
+        Ok(Stmt::While(condition, stmts))
     }
 
-    fn for_statement(&mut self) -> ParseResult<Stmt> {
+    fn for_statement(&mut self) -> ParseResult<StmtRef> {
         self.consume(TokenType::LeftParen, "Expect '(' after 'for'.")?;
         let initializer = if self.matches(&[TokenType::SemiColon]) {
             None
@@ -230,8 +236,12 @@ impl<'a> Parser<'a> {
             self.statement()?
         };
         body = match condition {
-            Some(expr) => Stmt::While(expr, Box::new(body)),
-            None => Stmt::While(Box::new(Expr::Literal(Literal::Bool(true))), Box::new(body)),
+            Some(expr) => Stmt::While(expr, self.stmt_pool.add(body)),
+            None => {
+                let expr = self.expr_pool.add(Expr::Literal(Literal::Bool(true)));
+                let stmts = self.stmt_pool.add(body);
+                Stmt::While(expr, stmts)
+            }
         };
         if let Some(stmt) = initializer {
             body = Stmt::Block(vec![stmt, body]);
@@ -239,18 +249,18 @@ impl<'a> Parser<'a> {
         Ok(body)
     }
 
-    fn return_statement(&mut self) -> ParseResult<Stmt> {
+    fn return_statement(&mut self) -> ParseResult<StmtRef> {
         let keyword = self.previous();
         let value = if !self.check(TokenType::SemiColon) {
             self.expression()?
         } else {
-            Box::new(Expr::Literal(Literal::Nothing))
+            self.expr_pool.add(Expr::Literal(Literal::Nothing))
         };
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         Ok(Stmt::Return(keyword, value))
     }
 
-    fn expression_statement(&mut self) -> ParseResult<Stmt> {
+    fn expression_statement(&mut self) -> ParseResult<StmtRef> {
         let value = self.expression()?;
         if self.is_repl {
             return Ok(Stmt::Print(value));
@@ -259,28 +269,32 @@ impl<'a> Parser<'a> {
         Ok(Stmt::Expression(value))
     }
 
-    fn expression(&mut self) -> ParseResult<Expression> {
+    fn expression(&mut self) -> ParseResult<ExprRef> {
         self.comma()
     }
 
-    fn comma(&mut self) -> ParseResult<Expression> {
+    fn comma(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.assignment()?;
         while self.matches(&[TokenType::Comma]) {
             let operator = self.previous();
             let right = self.equality()?;
-            expr = Box::new(Expr::Binary(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Binary(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn assignment(&mut self) -> ParseResult<Expression> {
+    fn assignment(&mut self) -> ParseResult<ExprRef> {
         let expr = self.or()?;
         if self.matches(&[TokenType::Equal]) {
             let value = self.assignment()?;
-            match *expr {
-                Expr::Variable(name) => return Ok(Box::new(Expr::Assign(name.clone(), value))),
+            match self.expr_pool.get(expr) {
+                Expr::Variable(name) => {
+                    let expr = self.expr_pool.add(Expr::Assign(name.clone(), value));
+                    return Ok(expr)
+                }
                 Expr::Get(object, name) => {
-                    return Ok(Box::new(Expr::Set(object.clone(), name.clone(), value)))
+                    let expr = self.expr_pool.add(Expr::Set(object.clone(), name.clone(), value));
+                    return Ok(expr);
                 }
                 _ => return Err(self.parse_error("Invalid assignment target.")),
             }
@@ -288,48 +302,49 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn or(&mut self) -> ParseResult<Expression> {
+    fn or(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.and()?;
         while self.matches(&[TokenType::Or]) {
             let operator = self.previous();
             let right = self.and()?;
-            expr = Box::new(Expr::Logical(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Logical(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn and(&mut self) -> ParseResult<Expression> {
+    fn and(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.ternary()?;
         while self.matches(&[TokenType::And]) {
             let operator = self.previous();
             let right = self.ternary()?;
-            expr = Box::new(Expr::Logical(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Logical(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn ternary(&mut self) -> ParseResult<Expression> {
+    fn ternary(&mut self) -> ParseResult<ExprRef> {
         let expr = self.equality()?;
         if self.matches(&[TokenType::QuestionMark]) {
             let middle = self.expression()?;
             self.consume(TokenType::Colon, "Expect ':' in ternary expression.")?;
             let right = self.expression()?;
-            return Ok(Box::new(Expr::Ternary(expr, middle, right)));
+            let expr = self.expr_pool.add(Expr::Ternary(expr, middle, right));
+            return Ok(expr);
         }
         Ok(expr)
     }
 
-    fn equality(&mut self) -> ParseResult<Expression> {
+    fn equality(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.comparison()?;
         while self.matches(&[TokenType::EqualEqual, TokenType::BangEqual]) {
             let operator = self.previous();
             let right = self.comparison()?;
-            expr = Box::new(Expr::Binary(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Binary(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn comparison(&mut self) -> ParseResult<Expression> {
+    fn comparison(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.addition()?;
         while self.matches(&[
             TokenType::LessEqual,
@@ -339,41 +354,42 @@ impl<'a> Parser<'a> {
         ]) {
             let operator = self.previous();
             let right = self.addition()?;
-            expr = Box::new(Expr::Binary(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Binary(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn addition(&mut self) -> ParseResult<Expression> {
+    fn addition(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.multiplication()?;
         while self.matches(&[TokenType::Minus, TokenType::Plus]) {
             let operator = self.previous();
             let right = self.multiplication()?;
-            expr = Box::new(Expr::Binary(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Binary(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn multiplication(&mut self) -> ParseResult<Expression> {
+    fn multiplication(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.unary()?;
         while self.matches(&[TokenType::Slash, TokenType::Star]) {
             let operator = self.previous();
             let right = self.unary()?;
-            expr = Box::new(Expr::Binary(expr, operator, right));
+            expr = self.expr_pool.add(Expr::Binary(expr, operator, right));
         }
         Ok(expr)
     }
 
-    fn unary(&mut self) -> ParseResult<Expression> {
+    fn unary(&mut self) -> ParseResult<ExprRef> {
         if self.matches(&[TokenType::Minus, TokenType::Bang]) {
             let operator = self.previous();
             let right = self.unary()?;
-            return Ok(Box::new(Expr::Unary(operator, right)));
+            let expr = self.expr_pool.add(Expr::Unary(operator, right));
+            return Ok(expr);
         }
         self.call()
     }
 
-    fn call(&mut self) -> ParseResult<Expression> {
+    fn call(&mut self) -> ParseResult<ExprRef> {
         let mut expr = self.primary()?;
         loop {
             if self.matches(&[TokenType::LeftParen]) {
@@ -381,7 +397,7 @@ impl<'a> Parser<'a> {
             } else if self.matches(&[TokenType::Dot]) {
                 let name =
                     self.consume(TokenType::Identifier, "Expect property name after '.''.")?;
-                expr = Box::new(Expr::Get(expr, name));
+                expr = self.expr_pool.add(Expr::Get(expr, name));
             } else {
                 break;
             }
@@ -389,7 +405,7 @@ impl<'a> Parser<'a> {
         Ok(expr)
     }
 
-    fn finish_call(&mut self, expr: Box<Expr>) -> ParseResult<Expression> {
+    fn finish_call(&mut self, expr: ExprRef) -> ParseResult<ExprRef> {
         let mut arguments = Vec::new();
         if !self.check(TokenType::RightParen) {
             arguments.push(self.call_argument()?);
@@ -401,17 +417,18 @@ impl<'a> Parser<'a> {
             }
         }
         let paren = self.consume(TokenType::RightParen, "Expect ')' after arguments")?;
-        Ok(Box::new(Expr::Call(expr, paren, arguments)))
+        let expr = self.expr_pool.add(Expr::Call(expr, paren, arguments));
+        Ok(expr)
     }
 
-    fn call_argument(&mut self) -> ParseResult<Expression> {
+    fn call_argument(&mut self) -> ParseResult<ExprRef> {
         if self.matches(&[TokenType::Fun]) {
             return self.lambda();
         }
         self.expression()
     }
 
-    fn lambda(&mut self) -> ParseResult<Expression> {
+    fn lambda(&mut self) -> ParseResult<ExprRef> {
         self.consume(
             TokenType::LeftParen,
             &format!("Expect '(' after lambda declaration."),
@@ -432,54 +449,62 @@ impl<'a> Parser<'a> {
             &format!("Expect '{{' before lambda body."),
         )?;
         let body = self.block()?;
-        Ok(Box::new(Expr::Lambda(params, body)))
+        let expr = self.expr_pool.add(Expr::Lambda(params, body));
+        Ok(expr)
     }
 
-    fn primary(&mut self) -> ParseResult<Expression> {
+    fn primary(&mut self) -> ParseResult<ExprRef> {
         if self.matches(&[TokenType::False]) {
-            return Ok(Box::new(Expr::Literal(Literal::Bool(false))));
+            let expr = self.expr_pool.add(Expr::Literal(Literal::Bool(false)));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::True]) {
-            return Ok(Box::new(Expr::Literal(Literal::Bool(true))));
+            let expr = self.expr_pool.add(Expr::Literal(Literal::Bool(true)));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::Nil]) {
-            return Ok(Box::new(Expr::Literal(Literal::Nothing)));
+            let expr = self.expr_pool.add(Expr::Literal(Literal::Nothing));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::Number]) {
             let num = self.previous().lexeme.parse().unwrap();
-            return Ok(Box::new(Expr::Literal(Literal::Number(num))));
+            let expr = self.expr_pool.add(Expr::Literal(Literal::Number(num)));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::Str]) {
-            return Ok(Box::new(Expr::Literal(Literal::Str(
-                self.previous().lexeme.clone(),
-            ))));
+            let string = self.previous().lexeme.clone();
+            let expr = self.expr_pool.add(Expr::Literal(Literal::Str(string)));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::LeftParen]) {
             let expr = self.expression()?;
             match self.consume(TokenType::RightParen, "Expect ')' after expression.") {
-                Ok(_) => return Ok(Box::new(Expr::Grouping(expr))),
+                Ok(_) => return Ok(self.expr_pool.add(Expr::Grouping(expr))),
                 Err(message) => return Err(message),
             }
         }
 
         if self.matches(&[TokenType::This]) {
-            return Ok(Box::new(Expr::This(self.previous())));
+            let expr = self.expr_pool.add(Expr::This(self.previous()));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::Identifier]) {
-            return Ok(Box::new(Expr::Variable(self.previous())));
+            let expr = self.expr_pool.add(Expr::Variable(self.previous()));
+            return Ok(expr);
         }
 
         if self.matches(&[TokenType::Super]) {
             let keyword = self.previous();
             self.consume(TokenType::Dot, "Expect '.' after 'super'.")?;
             let method = self.consume(TokenType::Identifier, "Expect superclass method name.")?;
-            return Ok(Box::new(Expr::Super(keyword, method)));
+            let expr = self.expr_pool.add(Expr::Super(keyword, method));
+            return Ok(expr);
         }
 
         Err(self.parse_error("Expect expression."))

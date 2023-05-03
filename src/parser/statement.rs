@@ -1,18 +1,32 @@
 use crate::lexer::token::Token;
-use crate::parser::expression::{Expr, Expression};
+use super::expression::ExprRef;
+use super::pool::PoolRef;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct StmtRef(u32);
+
+impl PoolRef for StmtRef {
+    fn new(val: u32) -> Self {
+        StmtRef(val)
+    }
+
+    fn val(&self) -> u32 {
+        self.0
+    }
+}
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Stmt {
-    Expression(Expression),
-    Print(Expression),
-    Var(Token, Expression),
+    Expression(ExprRef),
+    Print(ExprRef),
+    Var(Token, ExprRef),
     Block(Declarations),
-    If(Expression, Box<Stmt>, Box<Option<Stmt>>),
-    While(Expression, Box<Stmt>),
+    If(ExprRef, StmtRef, Option<StmtRef>),
+    While(ExprRef, StmtRef),
     Function(Token, Vec<Token>, Declarations),
     Getter(Token, Declarations),
-    Return(Token, Expression),
-    Class(Token, Vec<Stmt>, Box<Option<Expr>>),
+    Return(Token, ExprRef),
+    Class(Token, Vec<Stmt>, Option<ExprRef>),
 }
 
 pub type Declarations = Vec<Stmt>;

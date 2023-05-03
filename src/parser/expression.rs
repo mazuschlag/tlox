@@ -1,27 +1,39 @@
 use crate::lexer::literal::Literal;
 use crate::lexer::token::Token;
-use crate::parser::statement::Declarations;
 use std::fmt;
+use super::statement::Declarations;
+use super::pool::PoolRef;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ExprRef(u32);
+
+impl PoolRef for ExprRef {
+    fn new(val: u32) -> Self {
+        ExprRef(val)
+    }
+
+    fn val(&self) -> u32 {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Binary(Expression, Token, Expression),
-    Ternary(Expression, Expression, Expression),
-    Grouping(Expression),
+    Binary(ExprRef, Token, ExprRef),
+    Ternary(ExprRef, ExprRef, ExprRef),
+    Grouping(ExprRef),
     Literal(Literal),
-    Logical(Expression, Token, Expression),
-    Unary(Token, Expression),
+    Logical(ExprRef, Token, ExprRef),
+    Unary(Token, ExprRef),
     Variable(Token),
-    Assign(Token, Expression),
-    Call(Expression, Token, Vec<Box<Expr>>),
+    Assign(Token, ExprRef),
+    Call(ExprRef, Token, Vec<ExprRef>),
     Lambda(Vec<Token>, Declarations),
-    Get(Expression, Token),
-    Set(Expression, Token, Expression),
+    Get(ExprRef, Token),
+    Set(ExprRef, Token, ExprRef),
     This(Token),
     Super(Token, Token)
 }
-
-pub type Expression = Box<Expr>;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum FunctionType {

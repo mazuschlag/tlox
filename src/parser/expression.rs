@@ -1,8 +1,10 @@
+use crate::arena::pool::PoolRef;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::Token;
+
 use std::fmt;
-use super::statement::Declarations;
-use super::pool::PoolRef;
+
+use super::statement::StmtRef;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ExprRef(u32);
@@ -28,7 +30,7 @@ pub enum Expr {
     Variable(Token),
     Assign(Token, ExprRef),
     Call(ExprRef, Token, Vec<ExprRef>),
-    Lambda(Vec<Token>, Declarations),
+    Lambda(Vec<Token>, Vec<StmtRef>),
     Get(ExprRef, Token),
     Set(ExprRef, Token, ExprRef),
     This(Token),

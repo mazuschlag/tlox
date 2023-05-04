@@ -32,7 +32,7 @@ impl<'a> Scanner<'a> {
         }
     }
 
-    pub fn scan_tokens(&mut self) -> &Vec<Token> {
+    pub fn scan_tokens(mut self) -> Vec<Token> {
         for c in self.source.chars() {
             self.scan_token(c);
         }
@@ -43,7 +43,7 @@ impl<'a> Scanner<'a> {
             self.line,
             self.current_token_number,
         ));
-        &self.tokens
+        self.tokens
     }
 
     fn scan_token(&mut self, c: char) {

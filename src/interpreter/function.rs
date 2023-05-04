@@ -2,7 +2,7 @@ use crate::interpreter::environment::Environment;
 use crate::interpreter::interpreter::{Interpreter, RuntimeResult};
 use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::Token;
-use crate::parser::statement::Stmt;
+use crate::parser::statement::StmtRef;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -12,7 +12,7 @@ pub struct Function {
     pub arity: usize,
     pub name: Option<Token>,
     params: Vec<Token>,
-    body: Vec<Stmt>,
+    body: Vec<StmtRef>,
     closure: Rc<RefCell<Environment>>,
     is_initializer: bool,
 }
@@ -21,7 +21,7 @@ impl Function {
     pub fn new(
         name: Option<Token>,
         params: Vec<Token>,
-        body: Vec<Stmt>,
+        body: Vec<StmtRef>,
         parent: &Rc<RefCell<Environment>>,
         is_initializer: bool,
     ) -> Function {

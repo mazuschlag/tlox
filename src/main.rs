@@ -1,3 +1,4 @@
+mod arena;
 mod error;
 mod interpreter;
 mod lexer;
@@ -5,8 +6,10 @@ mod parser;
 
 use interpreter::interpreter::Interpreter;
 use lexer::scanner::Scanner;
-use parser::parser::Parser;
-use parser::resolver::Resolver;
+
+use parser::parser::{Parser, ParseOutput};
+use parser::resolver::{Resolver, ResolverOutput};
+
 use std::env;
 use std::fs::File;
 use std::io::{self, BufRead, Read, Write};
@@ -23,18 +26,16 @@ fn main() {
 fn run_file(file_name: &str) {
     let mut source_file = File::open(file_name).unwrap();
     let mut input = String::new();
-    let mut interpreter = Interpreter::new();
     source_file.read_to_string(&mut input).unwrap();
-    run(&mut interpreter, &input, false);
+    run(&input, false);
 }
 
 fn run_prompt() {
     new_line();
-    let mut interpreter = Interpreter::new();
     for line in io::stdin().lock().lines() {
         match line {
             Ok(input) => {
-                run(&mut interpreter, &input, true);
+                run(&input, true);
                 new_line();
             }
             Err(error) => println!("Error reading line: {}", error),
@@ -42,19 +43,21 @@ fn run_prompt() {
     }
 }
 
-fn run(interpreter: &mut Interpreter, source: &str, is_repl: bool) {
-    let mut scanner = Scanner::new(source);
+fn run(source: &str, is_repl: bool) {
+    let scanner = Scanner::new(source);
     let tokens = scanner.scan_tokens();
-    let mut parser = Parser::new(tokens, is_repl);
-    parser.parse();
-    if parser.errors.len() > 0 {
-        parser.errors.iter().for_each(|err| println!("{}", err));
-        return;
-    }
-    let program = parser.statements;
-    let mut resolver = Resolver::new(interpreter);
-    match resolver.resolve(&program) {
-        Ok(()) => interpreter.interpret(&program),
+    
+    let parsed = match Parser::new(tokens, is_repl).run() {
+        Ok(ParseOutput(program, stmt_pool, expr_pool)) => {
+            Resolver::new(stmt_pool, expr_pool).run(program)
+        }
+        Err(errors) => Err(errors.into_iter().map(|err| format!("{}\n", err)).collect::<String>()),
+    };
+
+    match parsed {
+        Ok(ResolverOutput(locals, stmt_pool, expr_pool, program)) => {
+            Interpreter::new(locals, stmt_pool, expr_pool).run(program)
+        },
         Err(e) => println!("{}", e),
     }
 }

@@ -1,6 +1,7 @@
 use crate::lexer::token::Token;
+use crate::arena::pool::PoolRef;
 use super::expression::ExprRef;
-use super::pool::PoolRef;
+
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct StmtRef(u32);
@@ -20,13 +21,11 @@ pub enum Stmt {
     Expression(ExprRef),
     Print(ExprRef),
     Var(Token, ExprRef),
-    Block(Declarations),
+    Block(Vec<StmtRef>),
     If(ExprRef, StmtRef, Option<StmtRef>),
     While(ExprRef, StmtRef),
-    Function(Token, Vec<Token>, Declarations),
-    Getter(Token, Declarations),
+    Function(Token, Vec<Token>, Vec<StmtRef>),
+    Getter(Token, Vec<StmtRef>),
     Return(Token, ExprRef),
-    Class(Token, Vec<Stmt>, Option<ExprRef>),
+    Class(Token, Vec<StmtRef>, Option<ExprRef>),
 }
-
-pub type Declarations = Vec<Stmt>;

@@ -1,25 +1,28 @@
+use crate::arena::pool::Pool;
 use crate::error::report::error;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
+
 use super::expression::{Expr, ExprRef, FunctionType};
-use super::pool::Pool;
-use super::statement::{Declarations, Stmt, StmtRef};
+use super::statement::{Stmt, StmtRef};
 
 #[derive(Debug)]
-pub struct Parser<'a> {
-    tokens: &'a Vec<Token>,
+pub struct Parser {
+    tokens: Vec<Token>,
     current: usize,
     is_repl: bool,
-    pub errors: Vec<String>,
-    pub statements: Declarations,
-    expr_pool: Pool<Expr>,
-    stmt_pool: Pool<Stmt>,
+    errors: Vec<String>,
+    pub statements: Vec<StmtRef>,
+    pub expr_pool: Pool<Expr>,
+    pub stmt_pool: Pool<Stmt>,
 }
 
 type ParseResult<T> = Result<T, String>;
 
-impl<'a> Parser<'a> {
-    pub fn new(tokens: &Vec<Token>, is_repl: bool) -> Parser {
+pub struct ParseOutput(pub Vec<StmtRef>, pub Pool<Stmt>, pub Pool<Expr>);
+
+impl Parser {
+    pub fn new(tokens: Vec<Token>, is_repl: bool) -> Parser {
         Parser {
             tokens: tokens,
             current: 0,
@@ -31,13 +34,19 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(&mut self) {
+    pub fn run(mut self) -> Result<ParseOutput, Vec<String>> {
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(statement) => self.statements.push(statement),
                 Err(err) => self.synchronize(err),
             }
         }
+
+        if self.errors.len() > 0 {
+            return Err(self.errors);
+        }
+
+        Ok(ParseOutput(self.statements, self.stmt_pool, self.expr_pool))
     }
 
     fn declaration(&mut self) -> ParseResult<StmtRef> {
@@ -60,7 +69,8 @@ impl<'a> Parser<'a> {
             false => self.expr_pool.add(Expr::Literal(Literal::Nothing)),
         };
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
-        Ok(Stmt::Var(name, initializer))
+        let stmt = self.stmt_pool.add(Stmt::Var(name, initializer));
+        Ok(stmt)
     }
 
     fn class_declaration(&mut self) -> ParseResult<StmtRef> {
@@ -76,7 +86,9 @@ impl<'a> Parser<'a> {
             methods.push(self.class_function()?);
         }
         self.consume(TokenType::RightBrace, "Expect '}' after class body")?;
-        Ok(Stmt::Class(name, methods, super_class.map(|class| self.expr_pool.add(class))))
+        let expr = super_class.map(|class| self.expr_pool.add(class));
+        let stmt = self.stmt_pool.add(Stmt::Class(name, methods, expr));
+        Ok(stmt)
     }
 
     fn class_function(&mut self) -> ParseResult<StmtRef> {
@@ -111,10 +123,11 @@ impl<'a> Parser<'a> {
             &format!("Expect '{{' before {} body.", kind),
         )?;
         let body = self.block()?;
-        match kind {
-            FunctionType::Getter => Ok(Stmt::Getter(name, body)),
-            _ => Ok(Stmt::Function(name, params, body)),
-        }
+        let stmt = self.stmt_pool.add(match kind {
+            FunctionType::Getter => Stmt::Getter(name, body),
+            _ => Stmt::Function(name, params, body),
+        });
+        Ok(stmt)
     }
 
     fn function_arguments(&mut self, mut params: Vec<Token>) -> ParseResult<Vec<Token>> {
@@ -135,7 +148,9 @@ impl<'a> Parser<'a> {
             return self.print_statement();
         }
         if self.matches(&[TokenType::LeftBrace]) {
-            return Ok(Stmt::Block(self.block()?));
+            let block = self.block()?;
+            let stmt = self.stmt_pool.add(Stmt::Block(block));
+            return Ok(stmt);
         }
         if self.matches(&[TokenType::If]) {
             return self.if_statement();
@@ -152,7 +167,7 @@ impl<'a> Parser<'a> {
         self.expression_statement()
     }
 
-    fn block(&mut self) -> ParseResult<Declarations> {
+    fn block(&mut self) -> ParseResult<Vec<StmtRef>> {
         let mut statements = Vec::new();
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             statements.push(self.declaration()?);
@@ -164,7 +179,8 @@ impl<'a> Parser<'a> {
     fn print_statement(&mut self) -> ParseResult<StmtRef> {
         let value = self.expression()?;
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
-        Ok(Stmt::Print(value))
+        let stmt = self.stmt_pool.add(Stmt::Print(value));
+        Ok(stmt)
     }
 
     fn if_statement(&mut self) -> ParseResult<StmtRef> {
@@ -177,11 +193,9 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
-        Ok(Stmt::If(
-            condition,
-            Box::new(then_branch),
-            Box::new(else_branch),
-        ))
+
+        let stmt = self.stmt_pool.add(Stmt::If(condition, then_branch, else_branch));
+        Ok(stmt)
     }
 
     fn while_statement(&mut self) -> ParseResult<StmtRef> {
@@ -189,8 +203,8 @@ impl<'a> Parser<'a> {
         let condition = self.expression()?;
         self.consume(TokenType::RightParen, "Expect ')' after while condition.")?;
         let body = self.statement()?;
-        let stmts = self.stmt_pool.add(body);
-        Ok(Stmt::While(condition, stmts))
+        let stmt = self.stmt_pool.add(Stmt::While(condition, body));
+        Ok(stmt)
     }
 
     fn for_statement(&mut self) -> ParseResult<StmtRef> {
@@ -208,6 +222,7 @@ impl<'a> Parser<'a> {
                 Err(err) => return Err(err),
             }
         };
+
         let condition = if !self.check(TokenType::SemiColon) {
             match self.expression() {
                 Ok(expr) => Some(expr),
@@ -216,6 +231,7 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+
         self.consume(TokenType::SemiColon, "Expect ';' after loop condition.")?;
         let increment = if !self.check(TokenType::RightParen) {
             match self.expression() {
@@ -225,26 +241,29 @@ impl<'a> Parser<'a> {
         } else {
             None
         };
+
         self.consume(TokenType::RightParen, "Expect ')' after for clauses.")?;
         let mut body = if self.matches(&[TokenType::LeftBrace]) {
             let mut block = self.block()?;
             if let Some(expr) = increment {
-                block.push(Stmt::Expression(expr))
+                let stmt = self.stmt_pool.add(Stmt::Expression(expr));
+                block.push(stmt)
             }
-            Stmt::Block(block)
+            self.stmt_pool.add(Stmt::Block(block))
         } else {
             self.statement()?
         };
+
         body = match condition {
-            Some(expr) => Stmt::While(expr, self.stmt_pool.add(body)),
+            Some(expr) => self.stmt_pool.add(Stmt::While(expr, body)),
             None => {
                 let expr = self.expr_pool.add(Expr::Literal(Literal::Bool(true)));
-                let stmts = self.stmt_pool.add(body);
-                Stmt::While(expr, stmts)
+                self.stmt_pool.add(Stmt::While(expr, body))
             }
         };
+
         if let Some(stmt) = initializer {
-            body = Stmt::Block(vec![stmt, body]);
+            body = self.stmt_pool.add(Stmt::Block(vec![stmt, body]));
         }
         Ok(body)
     }
@@ -257,16 +276,19 @@ impl<'a> Parser<'a> {
             self.expr_pool.add(Expr::Literal(Literal::Nothing))
         };
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
-        Ok(Stmt::Return(keyword, value))
+        let stmt = self.stmt_pool.add(Stmt::Return(keyword, value));
+        Ok(stmt)
     }
 
     fn expression_statement(&mut self) -> ParseResult<StmtRef> {
         let value = self.expression()?;
         if self.is_repl {
-            return Ok(Stmt::Print(value));
+            let stmt = self.stmt_pool.add(Stmt::Print(value));
+            return Ok(stmt);
         }
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
-        Ok(Stmt::Expression(value))
+        let stmt = self.stmt_pool.add(Stmt::Expression(value));
+        Ok(stmt)
     }
 
     fn expression(&mut self) -> ParseResult<ExprRef> {

@@ -5,8 +5,8 @@ use crate::interpreter::environment::Environment;
 use crate::interpreter::function::Function;
 use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::{Token, TokenType};
-use crate::parser::expression::{ExprRef, Expr};
-use crate::parser::statement::{StmtRef, Stmt};
+use crate::parser::expression::{Expr, ExprRef};
+use crate::parser::statement::{Stmt, StmtRef};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -73,7 +73,11 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_expression_stmt(&mut self, expr: ExprRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<()> {
+    fn visit_expression_stmt(
+        &mut self,
+        expr: ExprRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<()> {
         if self.return_value != Literal::Nothing {
             return Ok(());
         }
@@ -90,7 +94,12 @@ impl Interpreter {
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, name: &Token, initializer: ExprRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<()> {
+    fn visit_var_stmt(
+        &mut self,
+        name: &Token,
+        initializer: ExprRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<()> {
         if self.return_value != Literal::Nothing {
             return Ok(());
         }
@@ -155,7 +164,12 @@ impl Interpreter {
         return Ok(());
     }
 
-    fn visit_while_stmt(&mut self, condition: ExprRef, body: StmtRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<()> {
+    fn visit_while_stmt(
+        &mut self,
+        condition: ExprRef,
+        body: StmtRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<()> {
         let mut result = self.visit_expr(condition, pools)?;
         while self.is_truthy(&result) {
             self.visit_stmt(body, pools)?;
@@ -187,7 +201,12 @@ impl Interpreter {
     }
 
     #[allow(unused_variables)]
-    fn visit_return_stmt(&mut self, keyword: &Token, value: ExprRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<()> {
+    fn visit_return_stmt(
+        &mut self,
+        keyword: &Token,
+        value: ExprRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<()> {
         if self.in_initializer {
             self.return_value = match self.environment.borrow().get_at(&String::from("this"), 0) {
                 Some(value) => value,
@@ -226,9 +245,13 @@ impl Interpreter {
             .borrow_mut()
             .define(name.lexeme.clone(), Literal::Nothing);
         if let Some(class) = super_class {
-            self.environment = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(&mut self.environment)))));
+            self.environment = Rc::new(RefCell::new(Environment::new(Some(Rc::clone(
+                &mut self.environment,
+            )))));
             let parent_class = self.visit_expr(class, pools)?;
-            self.environment.borrow_mut().define("super".to_string(), parent_class);
+            self.environment
+                .borrow_mut()
+                .define("super".to_string(), parent_class);
         }
 
         let mut class_methods = HashMap::new();
@@ -259,7 +282,7 @@ impl Interpreter {
             let current_env = Rc::clone(&mut self.environment);
             self.environment = match &current_env.borrow().outer_scope {
                 Some(enclosing) => Rc::clone(&enclosing),
-                None => Rc::clone(&mut self.globals)
+                None => Rc::clone(&mut self.globals),
             };
         }
 
@@ -270,9 +293,15 @@ impl Interpreter {
         match pools.1.get(expr) {
             Expr::Assign(name, value) => self.visit_assign_expr(name, *value, pools),
             Expr::Variable(var) => self.visit_var_expr(var),
-            Expr::Binary(left, operator, right) => self.visit_binary_expr(*left, operator, *right, pools),
-            Expr::Logical(left, operator, right) => self.visit_logical_expr(*left, operator, *right, pools),
-            Expr::Ternary(left, middle, right) => self.visit_ternary_expr(*left, *middle, *right, pools),
+            Expr::Binary(left, operator, right) => {
+                self.visit_binary_expr(*left, operator, *right, pools)
+            }
+            Expr::Logical(left, operator, right) => {
+                self.visit_logical_expr(*left, operator, *right, pools)
+            }
+            Expr::Ternary(left, middle, right) => {
+                self.visit_ternary_expr(*left, *middle, *right, pools)
+            }
             Expr::Grouping(group) => self.visit_grouping_expr(*group, pools),
             Expr::Unary(operator, right) => self.visit_unary_expr(operator, *right, pools),
             Expr::Call(callee, right_paren, arguments) => {
@@ -287,7 +316,12 @@ impl Interpreter {
         }
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, initializer: ExprRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<Literal> {
+    fn visit_assign_expr(
+        &mut self,
+        name: &Token,
+        initializer: ExprRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<Literal> {
         let value = self.visit_expr(initializer, pools)?;
         let distance = self.locals.get(name);
         match distance {
@@ -378,11 +412,20 @@ impl Interpreter {
         }
     }
 
-    fn visit_grouping_expr(&mut self, group: ExprRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<Literal> {
+    fn visit_grouping_expr(
+        &mut self,
+        group: ExprRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<Literal> {
         self.visit_expr(group, pools)
     }
 
-    fn visit_unary_expr(&mut self, operator: &Token, expr: ExprRef, pools: &Pools<Stmt, Expr>) -> RuntimeResult<Literal> {
+    fn visit_unary_expr(
+        &mut self,
+        operator: &Token,
+        expr: ExprRef,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<Literal> {
         let right = self.visit_expr(expr, pools)?;
         match operator.typ {
             TokenType::Minus => {
@@ -443,11 +486,22 @@ impl Interpreter {
         params: &Vec<Token>,
         body: &Vec<StmtRef>,
     ) -> RuntimeResult<Literal> {
-        let function = Function::new(None, params.clone(), body.clone(), &mut self.environment, false);
+        let function = Function::new(
+            None,
+            params.clone(),
+            body.clone(),
+            &mut self.environment,
+            false,
+        );
         Ok(Literal::Fun(function))
     }
 
-    fn visit_get_expr(&mut self, expr: ExprRef, name: &Token, pools: &Pools<Stmt, Expr>) -> RuntimeResult<Literal> {
+    fn visit_get_expr(
+        &mut self,
+        expr: ExprRef,
+        name: &Token,
+        pools: &Pools<Stmt, Expr>,
+    ) -> RuntimeResult<Literal> {
         let instance = self.visit_expr(expr, pools)?;
         if let Literal::Instance(Instance::Dynamic(object)) = instance {
             // This is grabbing the wrong function
@@ -462,7 +516,7 @@ impl Interpreter {
                 dbg!(&fun.name);
                 return Ok(Literal::Fun(fun));
             }
-            return Ok(result)
+            return Ok(result);
         }
         if let Literal::Class(class) = instance {
             return class.get(name);
@@ -521,7 +575,10 @@ impl Interpreter {
                 }
             }
         }
-        Err(RuntimeError::new(method.clone(), &format!("Undefined property '{}'.", method.lexeme)))
+        Err(RuntimeError::new(
+            method.clone(),
+            &format!("Undefined property '{}'.", method.lexeme),
+        ))
     }
 
     fn visit_literal(&mut self, value: Literal) -> RuntimeResult<Literal> {

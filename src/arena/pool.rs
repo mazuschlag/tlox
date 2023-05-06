@@ -21,7 +21,10 @@ impl<T> Pool<T> {
     pub fn add<U: PoolRef>(&mut self, obj: T) -> U {
         let idx = self.0.len();
         self.0.push(obj);
-        PoolRef::new(idx.try_into().expect(&format!("too many objects in the pool")))
+        PoolRef::new(
+            idx.try_into()
+                .expect(&format!("too many objects in the pool")),
+        )
     }
 }
 

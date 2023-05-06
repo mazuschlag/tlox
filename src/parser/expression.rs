@@ -34,7 +34,7 @@ pub enum Expr {
     Get(ExprRef, Token),
     Set(ExprRef, Token, ExprRef),
     This(Token),
-    Super(Token, Token)
+    Super(Token, Token),
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]

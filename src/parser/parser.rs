@@ -46,7 +46,10 @@ impl Parser {
             return Err(self.errors);
         }
 
-        Ok(ParseOutput(self.statements, Pools(self.stmt_pool, self.expr_pool)))
+        Ok(ParseOutput(
+            self.statements,
+            Pools(self.stmt_pool, self.expr_pool),
+        ))
     }
 
     fn declaration(&mut self) -> ParseResult<StmtRef> {
@@ -68,6 +71,7 @@ impl Parser {
             true => self.expression()?,
             false => self.expr_pool.add(Expr::Literal(Literal::Nothing)),
         };
+
         self.consume(TokenType::SemiColon, "Expect ';' after value.")?;
         let stmt = self.stmt_pool.add(Stmt::Var(name, initializer));
         Ok(stmt)
@@ -194,7 +198,9 @@ impl Parser {
             None
         };
 
-        let stmt = self.stmt_pool.add(Stmt::If(condition, then_branch, else_branch));
+        let stmt = self
+            .stmt_pool
+            .add(Stmt::If(condition, then_branch, else_branch));
         Ok(stmt)
     }
 
@@ -312,10 +318,12 @@ impl Parser {
             match self.expr_pool.get(expr) {
                 Expr::Variable(name) => {
                     let expr = self.expr_pool.add(Expr::Assign(name.clone(), value));
-                    return Ok(expr)
+                    return Ok(expr);
                 }
                 Expr::Get(object, name) => {
-                    let expr = self.expr_pool.add(Expr::Set(object.clone(), name.clone(), value));
+                    let expr = self
+                        .expr_pool
+                        .add(Expr::Set(object.clone(), name.clone(), value));
                     return Ok(expr);
                 }
                 _ => return Err(self.parse_error("Invalid assignment target.")),

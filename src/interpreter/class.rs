@@ -43,7 +43,7 @@ impl Class {
         self,
         interpreter: &mut Interpreter,
         args: &Vec<Literal>,
-        pools: &Pools<Stmt, Expr>
+        pools: &Pools<Stmt, Expr>,
     ) -> RuntimeResult<Literal> {
         let instance = Object::new(self);
         let init_function = instance.class.borrow().find_method(&"init".to_string());
@@ -77,7 +77,7 @@ impl Class {
                 }
                 None
             }
-        }
+        };
     }
 }
 

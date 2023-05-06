@@ -1,7 +1,6 @@
-use crate::lexer::token::Token;
-use crate::arena::pool::PoolRef;
 use super::expression::ExprRef;
-
+use crate::arena::pool::PoolRef;
+use crate::lexer::token::Token;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct StmtRef(u32);

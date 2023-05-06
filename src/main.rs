@@ -8,7 +8,7 @@ use interpreter::interpreter::Interpreter;
 use lexer::scanner::Scanner;
 
 use parser::parser::{Parser, ParseOutput};
-use parser::resolver::{Resolver, ResolverOutput};
+use parser::resolver::Resolver;
 
 use std::env;
 use std::fs::File;
@@ -48,15 +48,15 @@ fn run(source: &str, is_repl: bool) {
     let tokens = scanner.scan_tokens();
     
     let parsed = match Parser::new(tokens, is_repl).run() {
-        Ok(ParseOutput(program, stmt_pool, expr_pool)) => {
-            Resolver::new(stmt_pool, expr_pool).run(program)
+        Ok(ParseOutput(program, pools)) => {
+            Resolver::new().run(program, pools)
         }
         Err(errors) => Err(errors.into_iter().map(|err| format!("{}\n", err)).collect::<String>()),
     };
 
     match parsed {
-        Ok(ResolverOutput(locals, stmt_pool, expr_pool, program)) => {
-            Interpreter::new(locals, stmt_pool, expr_pool).run(program)
+        Ok((program, pools, locals)) => {
+            Interpreter::new(locals).run(program, pools)
         },
         Err(e) => println!("{}", e),
     }

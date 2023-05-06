@@ -1,4 +1,4 @@
-use crate::arena::pool::Pool;
+use crate::arena::pool::Pools;
 use crate::error::report::error;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::Token;
@@ -9,8 +9,6 @@ use super::expression::{Expr, ExprRef};
 use super::statement::{Stmt, StmtRef};
 
 pub struct Resolver {
-    stmt_pool: Pool<Stmt>,
-    expr_pool: Pool<Expr>,
     scopes: Vec<HashMap<String, bool>>,
     locals: HashMap<Token, usize>,
     current_function: FunctionType,
@@ -34,17 +32,13 @@ enum ClassType {
     SubClass
 }
 
-pub struct ResolverOutput(pub HashMap<Token, usize>, pub Pool<Stmt>, pub Pool<Expr>, pub Vec<StmtRef>);
-
 impl Resolver {
-    pub fn new(stmt_pool: Pool<Stmt>, expr_pool: Pool<Expr>) -> Resolver {
+    pub fn new() -> Resolver {
         let scopes = Vec::new();
         let locals = HashMap::new();
         let current_function = FunctionType::NotAFunction;
         let current_class = ClassType::NotAClass;
         Resolver {
-            stmt_pool,
-            expr_pool,
             scopes,
             locals,
             current_function,
@@ -52,56 +46,56 @@ impl Resolver {
         }
     }
 
-    pub fn run(mut self, program: Vec<StmtRef>) -> Result<ResolverOutput, String> {
-        self.resolve(&program)?;
-        Ok(ResolverOutput(self.locals, self.stmt_pool, self.expr_pool, program))
+    pub fn run(mut self, program: Vec<StmtRef>, pools: Pools<Stmt, Expr>) -> Result<(Vec<StmtRef>, Pools<Stmt, Expr>, HashMap<Token, usize>), String> {
+        self.resolve(&program, &pools)?;
+        Ok((program, pools, self.locals))
     }
 
-    fn resolve(&mut self, statements: &Vec<StmtRef>) -> ResolverError {
+    fn resolve(&mut self, statements: &Vec<StmtRef>, pools: &Pools<Stmt, Expr>) -> ResolverError {
         for statement in statements {
-            self.visit_stmt(*statement)?;
+            self.visit_stmt(*statement, pools)?;
         }
         Ok(())
     }
 
-    fn visit_stmt(&mut self, statement: StmtRef) -> ResolverError {
-        match &self.stmt_pool.get(statement) {
-            Stmt::Block(body) => self.visit_block_stmt(body),
-            Stmt::Var(name, initializer) => self.visit_var_stmt(name, *initializer),
-            Stmt::Expression(expr) => self.visit_expression_stmt(*expr),
+    fn visit_stmt(&mut self, statement: StmtRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        match pools.0.get(statement) {
+            Stmt::Block(body) => self.visit_block_stmt(body, pools),
+            Stmt::Var(name, initializer) => self.visit_var_stmt(name, *initializer, pools),
+            Stmt::Expression(expr) => self.visit_expression_stmt(*expr, pools),
             Stmt::If(condition, then_branch, else_branch) => {
-                self.visit_if_stmt(*condition, *then_branch, *else_branch)
+                self.visit_if_stmt(*condition, *then_branch, *else_branch, pools)
             }
-            Stmt::Print(expr) => self.visit_print_stmt(*expr),
-            Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, *value),
-            Stmt::While(condition, body) => self.visit_while_stmt(*condition, *body),
-            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body),
-            Stmt::Getter(name, body) => self.visit_getter_stmt(name, body),
+            Stmt::Print(expr) => self.visit_print_stmt(*expr, pools),
+            Stmt::Return(keyword, value) => self.visit_return_stmt(keyword, *value, pools),
+            Stmt::While(condition, body) => self.visit_while_stmt(*condition, *body, pools),
+            Stmt::Function(name, params, body) => self.visit_function_stmt(name, params, body, pools),
+            Stmt::Getter(name, body) => self.visit_getter_stmt(name, body, pools),
             Stmt::Class(name, methods, super_class) => {
-                self.visit_class_stmt(name, methods, *super_class)
+                self.visit_class_stmt(name, methods, *super_class, pools)
             }
         }
     }
 
-    fn visit_block_stmt(&mut self, statements: &Vec<StmtRef>) -> ResolverError {
+    fn visit_block_stmt(&mut self, statements: &Vec<StmtRef>, pools: &Pools<Stmt, Expr>) -> ResolverError {
         self.begin_scope();
-        self.resolve(statements)?;
+        self.resolve(statements, pools)?;
         self.end_scope();
         Ok(())
     }
 
-    fn visit_var_stmt(&mut self, name: &Token, initializer: ExprRef) -> ResolverError {
+    fn visit_var_stmt(&mut self, name: &Token, initializer: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
         self.declare(name)?;
-        match self.expr_pool.get(initializer) {
+        match pools.1.get(initializer) {
             Expr::Literal(Literal::Nothing) => Ok(()),
-            _ => self.visit_expr(initializer),
+            _ => self.visit_expr(initializer, pools),
         }?;
         self.define(name);
         Ok(())
     }
 
-    fn visit_expression_stmt(&mut self, expr: ExprRef) -> ResolverError {
-        self.visit_expr(expr)
+    fn visit_expression_stmt(&mut self, expr: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(expr, pools)
     }
 
     fn visit_if_stmt(
@@ -109,35 +103,36 @@ impl Resolver {
         condition: ExprRef,
         then_branch: StmtRef,
         else_branch: Option<StmtRef>,
+        pools: &Pools<Stmt, Expr>,
     ) -> ResolverError {
-        self.visit_expr(condition)?;
-        self.visit_stmt(then_branch)?;
+        self.visit_expr(condition, pools)?;
+        self.visit_stmt(then_branch, pools)?;
         if let Some(statement) = else_branch {
-            self.visit_stmt(statement)?;
+            self.visit_stmt(statement, pools)?;
         }
         Ok(())
     }
 
-    fn visit_print_stmt(&mut self, expr: ExprRef) -> ResolverError {
-        self.visit_expr(expr)
+    fn visit_print_stmt(&mut self, expr: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(expr, pools)
     }
 
-    fn visit_return_stmt(&mut self, keyword: &Token, value: ExprRef) -> ResolverError {
+    fn visit_return_stmt(&mut self, keyword: &Token, value: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
         if self.current_function == FunctionType::NotAFunction {
             return Err(error(keyword, "Cannot return from top-level code."));
         }
         if self.current_function == FunctionType::Initializer {
             return Err(error(keyword, "Cannot return a value from an initializer."));
         }
-        match self.expr_pool.get(value) {
+        match pools.1.get(value) {
             Expr::Literal(Literal::Nothing) => Ok(()),
-            _ => self.visit_expr(value),
+            _ => self.visit_expr(value, pools),
         }
     }
 
-    fn visit_while_stmt(&mut self, condition: ExprRef, body: StmtRef) -> ResolverError {
-        self.visit_expr(condition)?;
-        self.visit_stmt(body)
+    fn visit_while_stmt(&mut self, condition: ExprRef, body: StmtRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(condition, pools)?;
+        self.visit_stmt(body, pools)
     }
 
     fn visit_function_stmt(
@@ -145,16 +140,17 @@ impl Resolver {
         name: &Token,
         params: &Vec<Token>,
         body: &Vec<StmtRef>,
+        pools: &Pools<Stmt, Expr>,
     ) -> ResolverError {
         self.declare(name)?;
         self.define(name);
-        self.resolve_function(params, body, FunctionType::Function)
+        self.resolve_function(params, body, FunctionType::Function, pools)
     }
 
-    fn visit_getter_stmt(&mut self, name: &Token, body: &Vec<StmtRef>) -> ResolverError {
+    fn visit_getter_stmt(&mut self, name: &Token, body: &Vec<StmtRef>, pools: &Pools<Stmt, Expr>) -> ResolverError {
         self.declare(name)?;
         self.define(name);
-        self.resolve_function(&Vec::new(), body, FunctionType::Method)
+        self.resolve_function(&Vec::new(), body, FunctionType::Method, pools)
     }
 
     fn visit_class_stmt(
@@ -162,13 +158,14 @@ impl Resolver {
         name: &Token,
         methods: &Vec<StmtRef>,
         super_class: Option<ExprRef>,
+        pools: &Pools<Stmt, Expr>
     ) -> ResolverError {
         let enclosing_class = self.current_class;
         self.current_class = ClassType::Class;
         self.declare(name)?;
         self.define(name);
         if let Some(expr) = super_class {
-            if let Expr::Variable(super_class_name) = self.expr_pool.get(expr) {
+            if let Expr::Variable(super_class_name) = pools.1.get(expr) {
                 if super_class_name.lexeme == name.lexeme {
                     return Err(error(name, "A class can't inherit from itself."));
                 }
@@ -177,7 +174,7 @@ impl Resolver {
 
         if let Some(class) = super_class {
             self.current_class = ClassType::SubClass;
-            self.visit_expr(class)?;
+            self.visit_expr(class, pools)?;
         }
 
         if let Some(_) = super_class {
@@ -193,14 +190,14 @@ impl Resolver {
         }
 
         for method in methods {
-            let stmt = self.stmt_pool.get(*method);
+            let stmt = pools.0.get(*method);
             if let Stmt::Function(_, params, body) = stmt {
                 let declaration = if name.lexeme == "init" {
                     FunctionType::Initializer
                 } else {
                     FunctionType::Method
                 };
-                self.resolve_function(&params, &body, declaration)?;
+                self.resolve_function(&params, &body, declaration, pools)?;
             }
         }
         self.end_scope();
@@ -211,19 +208,19 @@ impl Resolver {
         Ok(())
     }
 
-    fn visit_expr(&mut self, expr: ExprRef) -> ResolverError {
-        match &self.expr_pool.get(expr) {
+    fn visit_expr(&mut self, expr: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        match &pools.1.get(expr) {
             Expr::Variable(var) => self.visit_variable_expr(var),
-            Expr::Assign(name, value) => self.visit_assign_expr(name, *value),
-            Expr::Binary(left, _, right) => self.visit_binary_expr(*left, *right),
-            Expr::Logical(left, _, right) => self.visit_logical_expr(*left, *right),
-            Expr::Ternary(left, middle, right) => self.visit_ternary_expr(*left, *middle, *right),
-            Expr::Grouping(group) => self.visit_grouping_expr(*group),
-            Expr::Unary(_, right) => self.visit_unary_expr(*right),
-            Expr::Call(callee, _, arguments) => self.visit_call_expr(*callee, arguments),
-            Expr::Lambda(args, body) => self.visit_lambda_expr(args, body),
-            Expr::Get(object, _) => self.visit_get_expr(*object),
-            Expr::Set(object, _, value) => self.visit_set_expr(*object, *value),
+            Expr::Assign(name, value) => self.visit_assign_expr(name, *value, pools),
+            Expr::Binary(left, _, right) => self.visit_binary_expr(*left, *right, pools),
+            Expr::Logical(left, _, right) => self.visit_logical_expr(*left, *right, pools),
+            Expr::Ternary(left, middle, right) => self.visit_ternary_expr(*left, *middle, *right, pools),
+            Expr::Grouping(group) => self.visit_grouping_expr(*group, pools),
+            Expr::Unary(_, right) => self.visit_unary_expr(*right, pools),
+            Expr::Call(callee, _, arguments) => self.visit_call_expr(*callee, arguments, pools),
+            Expr::Lambda(args, body) => self.visit_lambda_expr(args, body, pools),
+            Expr::Get(object, _) => self.visit_get_expr(*object, pools),
+            Expr::Set(object, _, value) => self.visit_set_expr(*object, *value, pools),
             Expr::This(name) => self.visit_this_expr(name),
             Expr::Super(keyword, _) => self.visit_super_expr(keyword),
             Expr::Literal(_) => self.visit_literal(),
@@ -243,62 +240,62 @@ impl Resolver {
         Ok(())
     }
 
-    fn visit_assign_expr(&mut self, name: &Token, value: ExprRef) -> ResolverError {
-        self.visit_expr(value)?;
+    fn visit_assign_expr(&mut self, name: &Token, value: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(value, pools)?;
         self.resolve_local(name);
         Ok(())
     }
 
-    fn visit_binary_expr(&mut self, left: ExprRef, right: ExprRef) -> ResolverError {
-        self.visit_expr(left)?;
-        self.visit_expr(right)
+    fn visit_binary_expr(&mut self, left: ExprRef, right: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(left, pools)?;
+        self.visit_expr(right, pools)
     }
 
-    fn visit_logical_expr(&mut self, left: ExprRef, right: ExprRef) -> ResolverError {
-        self.visit_expr(left)?;
-        self.visit_expr(right)
+    fn visit_logical_expr(&mut self, left: ExprRef, right: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(left, pools)?;
+        self.visit_expr(right, pools)
     }
 
-    fn visit_ternary_expr(&mut self, left: ExprRef, middle: ExprRef, right: ExprRef) -> ResolverError {
-        self.visit_expr(left)?;
-        self.visit_expr(middle)?;
-        self.visit_expr(right)
+    fn visit_ternary_expr(&mut self, left: ExprRef, middle: ExprRef, right: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(left, pools)?;
+        self.visit_expr(middle, pools)?;
+        self.visit_expr(right, pools)
     }
 
-    fn visit_grouping_expr(&mut self, group: ExprRef) -> ResolverError {
-        self.visit_expr(group)
+    fn visit_grouping_expr(&mut self, group: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(group, pools)
     }
 
-    fn visit_unary_expr(&mut self, expr: ExprRef) -> ResolverError {
-        self.visit_expr(expr)
+    fn visit_unary_expr(&mut self, expr: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(expr, pools)
     }
 
-    fn visit_call_expr(&mut self, callee: ExprRef, arguments: &Vec<ExprRef>) -> ResolverError {
-        self.visit_expr(callee)?;
+    fn visit_call_expr(&mut self, callee: ExprRef, arguments: &Vec<ExprRef>, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(callee, pools)?;
         for argument in arguments {
-            self.visit_expr(*argument)?;
+            self.visit_expr(*argument, pools)?;
         }
         Ok(())
     }
 
-    fn visit_lambda_expr(&mut self, params: &Vec<Token>, body: &Vec<StmtRef>) -> ResolverError {
+    fn visit_lambda_expr(&mut self, params: &Vec<Token>, body: &Vec<StmtRef>, pools: &Pools<Stmt, Expr>) -> ResolverError {
         self.begin_scope();
         for param in params {
             self.declare(param)?;
             self.define(param);
         }
-        self.resolve(body)?;
+        self.resolve(body, pools)?;
         self.end_scope();
         Ok(())
     }
 
-    fn visit_get_expr(&mut self, object: ExprRef) -> ResolverError {
-        self.visit_expr(object)
+    fn visit_get_expr(&mut self, object: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(object, pools)
     }
 
-    fn visit_set_expr(&mut self, object: ExprRef, value: ExprRef) -> ResolverError {
-        self.visit_expr(value)?;
-        self.visit_expr(object)?;
+    fn visit_set_expr(&mut self, object: ExprRef, value: ExprRef, pools: &Pools<Stmt, Expr>) -> ResolverError {
+        self.visit_expr(value, pools)?;
+        self.visit_expr(object, pools)?;
         Ok(())
     }
 
@@ -368,6 +365,7 @@ impl Resolver {
         params: &Vec<Token>,
         body: &Vec<StmtRef>,
         typ: FunctionType,
+        pools: &Pools<Stmt, Expr>,
     ) -> ResolverError {
         let enclosing_function = self.current_function;
         self.current_function = typ;
@@ -376,7 +374,7 @@ impl Resolver {
             self.declare(param)?;
             self.define(param);
         }
-        self.resolve(body)?;
+        self.resolve(body, pools)?;
         self.end_scope();
         self.current_function = enclosing_function;
         Ok(())

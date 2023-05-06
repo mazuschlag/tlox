@@ -1,4 +1,4 @@
-use crate::arena::pool::Pool;
+use crate::arena::pool::{Pool, Pools};
 use crate::error::report::error;
 use crate::lexer::literal::Literal;
 use crate::lexer::token::{Token, TokenType};
@@ -19,7 +19,7 @@ pub struct Parser {
 
 type ParseResult<T> = Result<T, String>;
 
-pub struct ParseOutput(pub Vec<StmtRef>, pub Pool<Stmt>, pub Pool<Expr>);
+pub struct ParseOutput(pub Vec<StmtRef>, pub Pools<Stmt, Expr>);
 
 impl Parser {
     pub fn new(tokens: Vec<Token>, is_repl: bool) -> Parser {
@@ -46,7 +46,7 @@ impl Parser {
             return Err(self.errors);
         }
 
-        Ok(ParseOutput(self.statements, self.stmt_pool, self.expr_pool))
+        Ok(ParseOutput(self.statements, Pools(self.stmt_pool, self.expr_pool)))
     }
 
     fn declaration(&mut self) -> ParseResult<StmtRef> {

@@ -1,8 +1,11 @@
+use crate::arena::pool::Pools;
 use crate::error::report::RuntimeError;
 use crate::interpreter::interpreter::{Interpreter, RuntimeResult};
 use crate::interpreter::object::Object;
 use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::Token;
+use crate::parser::expression::Expr;
+use crate::parser::statement::Stmt;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
@@ -40,6 +43,7 @@ impl Class {
         self,
         interpreter: &mut Interpreter,
         args: &Vec<Literal>,
+        pools: &Pools<Stmt, Expr>
     ) -> RuntimeResult<Literal> {
         let instance = Object::new(self);
         let init_function = instance.class.borrow().find_method(&"init".to_string());
@@ -48,7 +52,7 @@ impl Class {
             if let Literal::Fun(bound_init) =
                 init.bind(Instance::Dynamic(Rc::clone(&wrapped_instance)), false)
             {
-                bound_init.call(interpreter, args)?;
+                bound_init.call(interpreter, args, pools)?;
             }
         }
         return Ok(Literal::Instance(Instance::Dynamic(wrapped_instance)));

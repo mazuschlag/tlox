@@ -24,3 +24,5 @@ impl<T> Pool<T> {
         PoolRef::new(idx.try_into().expect(&format!("too many objects in the pool")))
     }
 }
+
+pub struct Pools<T, U>(pub Pool<T>, pub Pool<U>);

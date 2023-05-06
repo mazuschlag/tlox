@@ -1,8 +1,10 @@
+use crate::arena::pool::Pools;
 use crate::interpreter::environment::Environment;
 use crate::interpreter::interpreter::{Interpreter, RuntimeResult};
 use crate::lexer::literal::{Instance, Literal};
 use crate::lexer::token::Token;
-use crate::parser::statement::StmtRef;
+use crate::parser::expression::Expr;
+use crate::parser::statement::{StmtRef, Stmt};
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -41,6 +43,7 @@ impl Function {
         &self,
         interpreter: &mut Interpreter,
         args: &Vec<Literal>,
+        pools: &Pools<Stmt, Expr>
     ) -> RuntimeResult<Literal> {
         let mut env = Environment::new(Some(Rc::clone(&self.closure)));
         for i in 0..self.arity {
@@ -48,7 +51,7 @@ impl Function {
         }
         let in_initializer = interpreter.in_initializer;
         interpreter.in_initializer = self.is_initializer;
-        interpreter.visit_block_stmt(&self.body, Some(env))?;
+        interpreter.visit_block_stmt(&self.body, Some(env), pools)?;
         interpreter.in_initializer = in_initializer;
 
         if self.is_initializer {
